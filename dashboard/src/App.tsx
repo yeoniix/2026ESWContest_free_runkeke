@@ -1,96 +1,120 @@
-import TacticalMap from "./components/TacticalMap";
 import { useEffect, useState } from "react";
 import "./App.css";
-import { fetchSoldiers } from "./api/soldier";
-import SoldierCard from "./components/SoldierCard";
-import type { Soldier } from "./types/soldier";
+import { fetchAlerts, fetchEmergencies } from "./api/gateway";
+import CommandConsole from "./components/CommandConsole";
+import DeviceCard from "./components/DeviceCard";
+import EventLog from "./components/EventLog";
+import RoleSwitcher from "./components/RoleSwitcher";
+import { useLiveDevices } from "./hooks/useLiveDevices";
+import type { AlertRecord, EmergencyRecord, Role } from "./types/device";
 
+function loadRole(): Role {
+  return (localStorage.getItem("hs_role") as Role) ?? "observer";
+}
+
+function loadActorId(): string {
+  return localStorage.getItem("hs_actor") ?? "OBS1";
+}
 
 function App() {
-  const [soldiers, setSoldiers] = useState<Soldier[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<string>("");
+  const [role, setRole] = useState<Role>(loadRole);
+  const [actorId, setActorId] = useState<string>(loadActorId);
+  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
+  const [emergencies, setEmergencies] = useState<EmergencyRecord[]>([]);
 
-  async function loadSoldiers() {
+  const { devices, events, connected, error } = useLiveDevices(role, actorId);
+
+  useEffect(() => {
+    localStorage.setItem("hs_role", role);
+  }, [role]);
+  useEffect(() => {
+    localStorage.setItem("hs_actor", actorId);
+  }, [actorId]);
+
+  async function refreshConsole() {
     try {
-      const data = await fetchSoldiers();
-      setSoldiers(data);
-      setLastUpdated(new Date().toLocaleTimeString());
-      setError(null);
+      const [a, e] = await Promise.all([fetchAlerts(role, actorId), fetchEmergencies(role, actorId)]);
+      setAlerts(a);
+      setEmergencies(e);
     } catch (err) {
       console.error(err);
-      setError("서버에서 병사 데이터를 가져오지 못했습니다.");
     }
   }
 
   useEffect(() => {
-    //loadSoldiers();
+    // 마운트 시 1회 즉시 조회 + 2초 폴링. refreshConsole은 commander 액션 뒤
+    // 수동 재조회에도 쓰이는 공용 함수라 effect 밖에 두었다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refreshConsole();
+    const id = window.setInterval(refreshConsole, 2000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, actorId]);
 
-    const intervalId = window.setInterval(() => {
-      loadSoldiers();
-    }, 1000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, []);
-
-  const normalCount = soldiers.filter((s) => s.risk_level === "normal").length;
-  const cautionCount = soldiers.filter((s) => s.risk_level === "caution").length;
-  const warningCount = soldiers.filter((s) => s.risk_level === "warning").length;
-  const criticalCount = soldiers.filter((s) => s.risk_level === "critical").length;
+  const stateCounts = devices.reduce<Record<string, number>>((acc, d) => {
+    acc[d.state] = (acc[d.state] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <main className="app">
       <section className="hero">
         <div>
-          <p className="eyebrow">HeatSentry Tactical Dashboard</p>
-          <h1>전술훈련 생체위험 관제 대시보드</h1>
+          <p className="eyebrow">HeatSentry Gateway Dashboard · HS-SIID-002 v2.0</p>
+          <h1>손목·허리 폐루프 관제 대시보드</h1>
           <p className="description">
-            웨어러블 센서와 GPS 데이터를 기반으로 병사의 전투지속능력과 위험 상태를 실시간으로 표시합니다.
+            센서 품질 → RiskIndex → 자동 냉각 → 30초 재평가 → SOS → 감사 로그로 이어지는 폐루프를
+            실시간으로 표시합니다. RiskIndex와 피부온도는 의료 진단값이 아닙니다.
           </p>
         </div>
 
         <div className="status-panel">
           <div>
             <span>정상</span>
-            <strong>{normalCount}</strong>
-          </div>
-          <div>
-            <span>주의</span>
-            <strong>{cautionCount}</strong>
+            <strong>{stateCounts.NORMAL ?? 0}</strong>
           </div>
           <div>
             <span>경고</span>
-            <strong>{warningCount}</strong>
+            <strong>{stateCounts.WARNING ?? 0}</strong>
           </div>
           <div>
-            <span>위험</span>
-            <strong>{criticalCount}</strong>
+            <span>냉각</span>
+            <strong>{stateCounts.COOLING ?? 0}</strong>
+          </div>
+          <div>
+            <span>응급</span>
+            <strong>{stateCounts.EMERGENCY ?? 0}</strong>
           </div>
         </div>
       </section>
 
       <section className="toolbar">
-        <span>연결 서버: http://127.0.0.1:8000</span>
-        <span>마지막 갱신: {lastUpdated || "-"}</span>
+        <span>연결 상태: {connected ? "WebSocket 연결됨" : "REST 폴백 중"}</span>
+        <RoleSwitcher role={role} actorId={actorId} onRoleChange={setRole} onActorChange={setActorId} />
       </section>
 
       {error && <div className="error">{error}</div>}
 
-      <TacticalMap soldiers={soldiers} />
-
       <section className="grid">
-        {soldiers.length === 0 && !error ? (
+        {devices.length === 0 && !error ? (
           <div className="empty">
-            아직 수신된 병사 데이터가 없습니다. FastAPI 서버와 simulator.py를 실행하세요.
+            아직 수신된 장치 데이터가 없습니다. 게이트웨이(uvicorn server.app.main:app)와 node_sim(python -m
+            node_sim.run_demo)을 먼저 실행하세요.
           </div>
         ) : (
-          soldiers.map((soldier) => (
-            <SoldierCard key={soldier.soldier_id} soldier={soldier} />
-          ))
+          devices.map((t) => <DeviceCard key={t.device_id} telemetry={t} />)
         )}
       </section>
+
+      <CommandConsole
+        alerts={alerts}
+        emergencies={emergencies}
+        role={role}
+        actorId={actorId}
+        onChanged={refreshConsole}
+      />
+
+      <EventLog events={events} role={role} actorId={actorId} />
     </main>
   );
 }

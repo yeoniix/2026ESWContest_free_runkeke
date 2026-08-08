@@ -3,6 +3,10 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# HeatSentry gateway local sqlite store (개발용 로컬 저장소, 커밋 대상 아님)
+*.db
+server/app/heatsentry_gateway.db
+
 # C extensions
 *.so
 
