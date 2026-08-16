@@ -1,0 +1,48 @@
+{
+  "overall_x": 240.0,
+  "overall_y": 72.0,
+  "overall_z": 90.0,
+  "half_x": 120.0,
+  "wall": 2.4,
+  "separator_center_y": -1.5,
+  "separator_thickness": 2.4,
+  "fan_size": 40.0,
+  "fan_thickness": 10.3,
+  "fan_pocket": 41.0,
+  "fan_x": [
+    -52.0,
+    52.0
+  ],
+  "fan_z": 42.0,
+  "fan_hole_pitch": 32.0,
+  "top_port_capsule_x": 40.0,
+  "top_port_capsule_y": 26.0,
+  "top_riser_outer_x": 44.0,
+  "top_riser_outer_y": 30.0,
+  "top_port_y": -18.0,
+  "top_riser_height": 18.0,
+  "service_open_x": 204.0,
+  "service_open_z": 74.0,
+  "service_cover_x": 216.0,
+  "service_cover_z": 82.0,
+  "service_cover_t": 2.8,
+  "powerbank_ref": [
+    140.0,
+    15.0,
+    70.0
+  ],
+  "esp_ref": [
+    30.0,
+    25.0,
+    55.0
+  ],
+  "pcm_ref": [
+    160.0,
+    8.0,
+    64.0
+  ],
+  "belt_webbing_width": 50.0,
+  "belt_webbing_gap": 5.0,
+  "nominal_insert_pilot_m3": 4.2,
+  "nominal_clearance_m3": 3.5
+}

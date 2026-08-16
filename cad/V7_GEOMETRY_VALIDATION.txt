@@ -1,0 +1,51 @@
+HeatSentry V7 TRUE FINAL — CAD geometry validation
+
+STL topology: PASS
+- 01_LEFT_SHELL_V7.stl: components=1, watertight=True, bbox=124.2 x 72.1 x 108.0 mm
+- 02_RIGHT_SHELL_V7.stl: components=1, watertight=True, bbox=120.2 x 72.1 x 113.5 mm
+- 03B_SERVICE_COVER_FLAT_NO_PCM_V7.stl: components=1, watertight=True, bbox=216.0 x 2.8 x 82.0 mm
+- 03_SERVICE_COVER_PCM_READY_V7.stl: components=1, watertight=True, bbox=216.0 x 8.8 x 82.0 mm
+- 04_BATTERY_CRADLE_140x70_V7.stl: components=1, watertight=True, bbox=146.0 x 8.4 x 73.5 mm
+- 05_ESP_UNIVERSAL_SLED_V7.stl: components=1, watertight=True, bbox=36.0 x 1.6 x 62.0 mm
+- 06_CENTER_BRIDGE_PLATE_PRINT_2X_V7.stl: components=1, watertight=True, bbox=40.0 x 3.0 x 10.0 mm
+- 07_BELT_LOOP_LEFT_50mm_V7.stl: components=1, watertight=True, bbox=11.8 x 22.0 x 70.0 mm
+- 08_BELT_LOOP_RIGHT_50mm_V7.stl: components=1, watertight=True, bbox=11.8 x 22.0 x 70.0 mm
+- 09_FAN_FILTER_GRILLE_40mm_PRINT_2X_V7.stl: components=1, watertight=True, bbox=48.0 x 3.0 x 48.0 mm
+- 10_PCM_CARRIER_UNIVERSAL_V7.stl: components=1, watertight=True, bbox=172.0 x 10.4 x 76.0 mm
+- 11_DUCT_ADAPTER_TO_32mm_OD_HOSE_V7.stl: components=1, watertight=True, bbox=50.0 x 38.0 x 20.0 mm
+- 12_DUCT_ADAPTER_TO_25mm_OD_HOSE_COMPAT_V7.stl: components=1, watertight=True, bbox=50.0 x 38.0 x 20.0 mm
+
+Assembly interference checks: PASS
+- left_vs_right: 0.000000 mm^3
+- shell_vs_pcm_cover: 0.000000 mm^3
+- shell_vs_flat_cover: 0.000000 mm^3
+- shell_vs_fan_left_ref: 0.000000 mm^3
+- shell_vs_fan_right_ref: 0.000000 mm^3
+- shell_vs_powerbank_ref: 0.000000 mm^3
+- shell_vs_esp_ref: 0.000000 mm^3
+- battery_cradle_vs_powerbank_ref: 0.000000 mm^3
+- esp_sled_vs_esp_ref: 0.000000 mm^3
+- left_belt_loop_vs_left_shell: 0.000000 mm^3
+- right_belt_loop_vs_right_shell: 0.000000 mm^3
+- pcm_carrier_vs_pcm_cover: 0.000000 mm^3
+- pcm_carrier_vs_pcm_ref: 0.000000 mm^3
+
+Key geometry
+- left_shell_solids: 1
+- right_shell_solids: 1
+- air_chamber_depth_mm: 30.900
+- electronics_depth_mm: 33.900
+- fan_back_plenum_depth_mm: 20.550
+- fan_backer_open_area_mm2: 1075.210
+- top_port_open_area_mm2: 894.929
+- top_port_to_fan_backer_area_ratio: 0.832
+- esp_rear_clearance_mm: 5.400
+- powerbank_rear_clearance_mm: 10.200
+- cover_45deg_square_footprint_mm: 210.718
+- rear_service_opening_mm: [204.0, 74.0]
+- wall_mm: 2.400
+- top_riser_height_mm: 18.000
+
+Notes
+- PASS means CAD-level topology/interference checks passed. It is not a physical IP rating or a substitute for a real fit/leak test with the purchased hardware.
+- The entire wearable cannot be IP67 while its cooling airflow path is intentionally open. The electronics bay is isolated by an integral separator and gasketed service cover; actual ingress protection requires physical testing.

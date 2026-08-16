@@ -1,0 +1,38 @@
+HeatSentry V7 TRUE FINAL - BOM / 체결부
+
+[기준 부품]
+- 40 x 40 x 10.3 mm fan x2, 32 x 32 mm hole pitch
+- Power bank 140 x 70 x 15 mm x1
+- ESP/LoRa mounted envelope <= 30 x 55 x 25 mm x1
+- 50 mm webbing belt
+- 44 x 44 mm fan filter foam/mesh x2
+- 선택: PCM pack <= 약 160 x 64 x 8 mm
+
+[M3 heat-set insert - nominal 4.2 mm pilot]
+- fan bosses: 8
+- rear cover bosses: 10
+- battery cradle bosses: 4
+- belt-loop bosses: 8
+- center bridge bosses: 4
+- PCM-ready cover bosses: 4 (PCM 사용할 때)
+- 합계: 34개 (PCM 미사용) / 38개 (PCM 사용)
+
+[나사]
+- fan grille + fan: M3 x 18~20, washer 포함, 8개
+- rear service cover: M3 x 8, 10개
+- battery cradle: M3 x 8, 4개
+- belt loops: M3 x 8, 8개
+- center bridge plates: M3 x 8, 4개
+- PCM carrier: M3 x 8~10, 4개 (선택)
+- ESP sled: M2.5 x 5~6 self-tapping 또는 실제 사용하는 체결 방식, 4개
+
+[실링/배선]
+- rear-cover gasket: 2 mm silicone cord 또는 얇은 closed-cell foam gasket
+  rear opening 둘레 기준 약 556 mm이므로 0.65 m 이상 준비 권장
+- center seam: 얇은 silicone gasket/RTV
+- fan wire separator hole: Ø8.2 mm hole용 grommet 또는 RTV
+- bottom cable ports: Ø8.5 mm hole에 맞는 grommet/밀봉 부품 x2
+
+[덕트]
+- 32 mm OD hose 사용: 11_DUCT_ADAPTER... x2
+- 25 mm OD hose 사용: 12_DUCT_ADAPTER... x2 (airflow 제한이 더 큼)

@@ -1,0 +1,27 @@
+{
+  "left_shell_solids": 1,
+  "right_shell_solids": 1,
+  "left_bbox": [
+    124.20136779919645,
+    72.10313171017567,
+    108.0046624699879
+  ],
+  "right_bbox": [
+    120.20136779919653,
+    72.10313171017567,
+    113.50683819598207
+  ],
+  "service_cover_bbox": [
+    216.0000002000001,
+    8.801851324100845,
+    82.0000002000001
+  ],
+  "air_chamber_depth": 30.900000000000002,
+  "electronics_depth": 33.9,
+  "fan_back_plenum_depth": 20.55,
+  "fan_backer_open_area_mm2": 1075.2100856911068,
+  "top_port_open_area_mm2": 894.929158456675,
+  "top_to_fan_area_ratio": 0.8323295794620885,
+  "esp_nominal_clearance_to_rear_inner_mm": 5.350000000000001,
+  "battery_nominal_clearance_to_rear_inner_mm": 10.0
+}

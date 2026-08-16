@@ -1,0 +1,181 @@
+{
+  "stl": [
+    {
+      "file": "01_LEFT_SHELL_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 135397.83697647997,
+      "bbox_mm": [
+        124.19999694824219,
+        72.0999984741211,
+        108.0
+      ]
+    },
+    {
+      "file": "02_RIGHT_SHELL_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 134978.07540834672,
+      "bbox_mm": [
+        120.19999694824219,
+        72.0999984741211,
+        113.5
+      ]
+    },
+    {
+      "file": "03B_SERVICE_COVER_FLAT_NO_PCM_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 48059.76482458648,
+      "bbox_mm": [
+        216.0,
+        2.799999237060547,
+        82.0
+      ]
+    },
+    {
+      "file": "03_SERVICE_COVER_PCM_READY_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 49079.02770277441,
+      "bbox_mm": [
+        216.0,
+        8.799999237060547,
+        82.0
+      ]
+    },
+    {
+      "file": "04_BATTERY_CRADLE_140x70_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 16722.972267400055,
+      "bbox_mm": [
+        146.0,
+        8.399999618530273,
+        73.5
+      ]
+    },
+    {
+      "file": "05_ESP_UNIVERSAL_SLED_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 3396.3317597047476,
+      "bbox_mm": [
+        36.0,
+        1.600000023841858,
+        62.0
+      ]
+    },
+    {
+      "file": "06_CENTER_BRIDGE_PLATE_PRINT_2X_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 1142.297153361494,
+      "bbox_mm": [
+        40.0,
+        3.0,
+        10.0
+      ]
+    },
+    {
+      "file": "07_BELT_LOOP_LEFT_50mm_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 5137.632459000728,
+      "bbox_mm": [
+        11.800003051757812,
+        22.0,
+        70.0
+      ]
+    },
+    {
+      "file": "08_BELT_LOOP_RIGHT_50mm_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 5137.6324590007325,
+      "bbox_mm": [
+        11.800003051757812,
+        22.0,
+        70.0
+      ]
+    },
+    {
+      "file": "09_FAN_FILTER_GRILLE_40mm_PRINT_2X_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 3882.284317698197,
+      "bbox_mm": [
+        48.0,
+        3.0,
+        48.0
+      ]
+    },
+    {
+      "file": "10_PCM_CARRIER_UNIVERSAL_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 32595.04581288101,
+      "bbox_mm": [
+        172.0,
+        10.400001525878906,
+        76.0
+      ]
+    },
+    {
+      "file": "11_DUCT_ADAPTER_TO_32mm_OD_HOSE_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 6658.790712919544,
+      "bbox_mm": [
+        49.988189697265625,
+        38.0,
+        20.0
+      ]
+    },
+    {
+      "file": "12_DUCT_ADAPTER_TO_25mm_OD_HOSE_COMPAT_V7.stl",
+      "components": 1,
+      "watertight": true,
+      "volume_mm3": 6747.263809857984,
+      "bbox_mm": [
+        49.988189697265625,
+        38.0,
+        20.0
+      ]
+    }
+  ],
+  "interference_mm3": {
+    "left_vs_right": 0.0,
+    "shell_vs_pcm_cover": 0.0,
+    "shell_vs_flat_cover": 0.0,
+    "shell_vs_fan_left_ref": 0.0,
+    "shell_vs_fan_right_ref": 0.0,
+    "shell_vs_powerbank_ref": 0.0,
+    "shell_vs_esp_ref": 0.0,
+    "battery_cradle_vs_powerbank_ref": 0.0,
+    "esp_sled_vs_esp_ref": 0.0,
+    "left_belt_loop_vs_left_shell": 0.0,
+    "right_belt_loop_vs_right_shell": 0.0,
+    "pcm_carrier_vs_pcm_cover": 0.0,
+    "pcm_carrier_vs_pcm_ref": 0.0
+  },
+  "metrics": {
+    "left_shell_solids": 1,
+    "right_shell_solids": 1,
+    "air_chamber_depth_mm": 30.900000000000002,
+    "electronics_depth_mm": 33.9,
+    "fan_back_plenum_depth_mm": 20.55,
+    "fan_backer_open_area_mm2": 1075.2100856911068,
+    "top_port_open_area_mm2": 894.929158456675,
+    "top_port_to_fan_backer_area_ratio": 0.8323295794620885,
+    "esp_rear_clearance_mm": 5.400000000000002,
+    "powerbank_rear_clearance_mm": 10.200000000000003,
+    "cover_45deg_square_footprint_mm": 210.71782079359116,
+    "rear_service_opening_mm": [
+      204.0,
+      74.0
+    ],
+    "wall_mm": 2.4,
+    "top_riser_height_mm": 18.0
+  }
+}
