@@ -17,7 +17,7 @@ def test_c1_enters_after_10s_above_80_ctl_001():
         assert out.cooling_stage == "C0"
     out = fsm.update(_risk(85), dt_s=1.0)
     assert out.cooling_stage == "C1"
-    assert out.commanded_fan_percent == 20
+    assert out.commanded_fan_percent == 50
     assert out.device_state == DeviceState.COOLING
 
 
@@ -33,7 +33,7 @@ def test_can_skip_directly_to_c2_when_risk_jumps_high():
     for _ in range(10):
         out = fsm.update(_risk(92), dt_s=1.0)
     assert out.cooling_stage == "C2"
-    assert out.commanded_fan_percent == 60
+    assert out.commanded_fan_percent == 100
 
 
 def test_c3_requires_60s_unrecovered_and_commander_confirm_to_downgrade():

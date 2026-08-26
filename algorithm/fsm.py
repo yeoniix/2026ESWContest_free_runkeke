@@ -26,7 +26,10 @@ from algorithm.risk_engine import RiskResult
 from common.packets import CoolReason, DeviceState
 
 _STAGE_ORDER = ["C0", "C1", "C2", "C3", "C4"]
-_STAGE_FAN = {"C0": 0, "C1": 20, "C2": 60, "C3": 100, "C4": 100}
+# 실제 블로워의 저출력 구간은 체감 냉각 효과가 작으므로, 현장 제어는
+# OFF -> 50% -> 100% 두 출력 단계로 단순화한다. C2/C3의 구분은 출력이 아니라
+# 위험 지속 시간과 LCD/관제 경보 수준을 구분하기 위해 유지한다.
+_STAGE_FAN = {"C0": 0, "C1": 50, "C2": 100, "C3": 100, "C4": 100}
 
 
 class HoldTimer:
@@ -46,7 +49,7 @@ class ManualInputs:
 
     safety_stop: bool = False  # 우선순위1: 수동 STOP·과전류·저온(허리에서 보고)
     manual_sos: bool = False  # 우선순위2 성분: 수동 SOS 버튼
-    commander_fan_percent: int | None = None  # 우선순위4: 지휘관 수동 냉각(0/20/60/100)
+    commander_fan_percent: int | None = None  # 우선순위4: 지휘관 수동 냉각(0/50/100)
     test_mode: bool = False  # 우선순위5
 
 

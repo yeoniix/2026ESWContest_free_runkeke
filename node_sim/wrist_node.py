@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from algorithm.baseline import Baseline, BaselineBuilder, BaselineSample
+from algorithm.display_status import make_display_status, select_display_cause
 from algorithm.fsm import HeatSentryFsm, ManualInputs
 from algorithm.risk_config import RiskConfig, DEFAULT_CONFIG
 from algorithm.risk_engine import RiskEngine, SensorSample
@@ -50,6 +51,8 @@ class RawTick:
     quality_eda: int = 100
     skin_temp_stale_s: float = 0.0
     imu_ok: bool = True
+    # IR/Finger 센서에서 얻은 장갑 착용 여부. 실제 LoRa 패킷의 Finger 값과 연결한다.
+    finger_detected: bool = True
 
     comms_ok: bool = True
     commander_fan_percent: int | None = None
@@ -292,6 +295,17 @@ class WristNode:
             "config_version": self.config.version,
             "sequence": self.sequence,
         }
+        # 실제 장갑 펌웨어는 이 두 문구를 I2C LCD/OLED에 그대로 출력하면 된다.
+        # 현재 API 스키마는 호환성을 위해 화면 문구를 저장하지 않는다.
+        display = make_display_status(
+            device_state.name,
+            cooling_stage,
+            commanded_fan,
+            cause=select_display_cause(contributions),
+            finger_detected=raw.finger_detected,
+            hr_bpm=raw.hr_bpm,
+            skin_temp_c=raw.skin_temp_c,
+        )
         if sensor_limited and device_state != DeviceState.BASELINE:
             telemetry["active_errors"] = list(set(telemetry["active_errors"] + ["SENSOR_LIMITED"]))
 
@@ -302,4 +316,5 @@ class WristNode:
             "telemetry": telemetry,
             "events": events,
             "command_ack": command_ack_record,
+            "display": {"line1": display.line1, "line2": display.line2},
         }

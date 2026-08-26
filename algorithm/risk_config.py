@@ -95,9 +95,9 @@ class FsmConfig:
         default_factory=lambda: (
             CoolingStageConfig("C0", enter_threshold=0, enter_hold_s=0, fan_percent=0,
                                 exit_threshold=None, exit_hold_s=None),
-            CoolingStageConfig("C1", enter_threshold=80, enter_hold_s=10, fan_percent=20,
+            CoolingStageConfig("C1", enter_threshold=80, enter_hold_s=10, fan_percent=50,
                                 exit_threshold=70, exit_hold_s=30),
-            CoolingStageConfig("C2", enter_threshold=90, enter_hold_s=10, fan_percent=60,
+            CoolingStageConfig("C2", enter_threshold=90, enter_hold_s=10, fan_percent=100,
                                 exit_threshold=80, exit_hold_s=30),
             CoolingStageConfig("C3", enter_threshold=90, enter_hold_s=60, fan_percent=100,
                                 exit_threshold=85, exit_hold_s=60),
@@ -113,7 +113,7 @@ class FsmConfig:
     # Fail-safe (SIID p4 "연결·재전송 정책" #4, PDD p6 "Fail-safe")
     ble_comms_lost_s: float = 10.0
     fan_safety_timer_s: float = 60.0
-    fan_safety_level: int = 20
+    fan_safety_level: int = 50
 
     # 명령 재전송 (SIID p4 #1, PDD 성공지표 #2)
     ack_timeout_ms: float = 500.0

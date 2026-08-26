@@ -46,6 +46,23 @@ GATT characteristic payload로 쓰면 된다.
 
 ### 바이트 레이아웃
 
+### 현재 Heltec LoRa 센서 텔레메트리 (35B)
+
+하드웨어 팀의 현재 구현은 `TelemetryPacket` packed 구조체를 LoRa로 보낸다. ESP32는
+little-endian이므로 서버/게이트웨이 디코더도 같은 순서(`<HBBHBhHhIhHiiBhHB`)를 쓴다.
+디코더 구현은 `common/glove_packets.py`에 있다.
+
+| flags bit | 의미 |
+| --- | --- |
+| 0 | 장갑 데이터 유효 |
+| 1 | DHT11 데이터 유효 |
+| 2 | GPS Fix 유효 |
+| 3 | Finger 감지 |
+
+`Finger=NO`, `BPM=0`, 또는 장갑 데이터 무효는 위험점수 0이 아니라 LCD의
+`SENSOR CHECK / WEAR GLOVE` 상태로 처리한다. 이 LoRa payload는 현장 하드웨어
+중간 형식이며, 게이트웨이 API의 `TelemetryV2`와는 별개다.
+
 **공통 헤더 + HS_STATUS (24B)** — `common/packets.py`의 `HsStatus`:
 
 ```
@@ -67,7 +84,7 @@ GATT characteristic payload로 쓰면 된다.
 
 ```
 0      version    u8
-1      level      u8   fan percent (0/20/60/100)
+1      level      u8   fan percent (0/50/100)
 2-3    duration_s u16 LE
 4-5    cmd_id     u16 LE
 6-7    sequence   u16 LE
@@ -121,7 +138,7 @@ GATT characteristic payload로 쓰면 된다.
 2. 동일 `cmd_id` 재수신 시 허리는 팬을 재시작하지 않고 현재 결과만 ACK한다(idempotent).
    구현: `node_sim/belt_node.py`의 `BeltNode._processed_cmds` 캐시.
 3. 상태 Notify는 손실 허용, Emergency는 Indicate 또는 애플리케이션 ACK을 쓴다.
-4. 연결 손실 10초에서 COMMS_LOST(E201), 60초에서 팬 안전 타이머(20%로 하향) — 구현:
+4. 연결 손실 10초에서 COMMS_LOST(E201), 60초에서 팬 안전 타이머(50%로 하향) — 구현:
    `node_sim/belt_node.py`의 `BeltNode.tick()`, 상수는 `common/errors.py`의
    `BLE_COMMS_LOST_S`/`FAN_SAFETY_TIMER_S`/`FAN_SAFETY_LEVEL`.
 

@@ -169,7 +169,7 @@ class CoolCmdFlag(IntEnum):
 
 @dataclass
 class CoolCmd:
-    level: int  # fan percent 0/20/60/100
+    level: int  # fan percent 0/50/100
     duration_s: int
     cmd_id: int
     sequence: int
