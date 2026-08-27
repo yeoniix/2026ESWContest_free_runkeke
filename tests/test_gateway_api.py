@@ -41,6 +41,34 @@ def test_ingest_then_list_devices(client):
     assert devices[0]["device_id"] == "HS-W-001"
 
 
+def test_duplicate_telemetry_is_ignored(client):
+    assert client.post("/ingest/telemetry", json=TELEMETRY).json()["status"] == "ok"
+    duplicate = client.post("/ingest/telemetry", json=TELEMETRY)
+    assert duplicate.status_code == 200
+    assert duplicate.json()["status"] == "duplicate_ignored"
+    events = client.get("/api/v2/events", headers={"X-HS-Role": "observer"}).json()
+    assert len(events) == 1
+
+
+def test_ingest_rejects_unprovisioned_device_when_keys_are_configured(client, monkeypatch):
+    monkeypatch.setenv("HEATSENTRY_DEVICE_KEYS", json.dumps({"HS-W-001": "device-secret"}))
+    r = client.post("/ingest/telemetry", json=TELEMETRY)
+    assert r.status_code == 401
+    r = client.post("/ingest/telemetry", json=TELEMETRY, headers={"X-HS-Device-Key": "device-secret"})
+    assert r.status_code == 200
+
+
+def test_alerts_survive_gateway_restart(tmp_path, monkeypatch):
+    monkeypatch.setenv("HEATSENTRY_DB_PATH", str(tmp_path / "persistent.db"))
+    with TestClient(app) as first:
+        first.post("/ingest/telemetry", json=TELEMETRY)
+        alert = first.get("/api/v2/alerts", headers={"X-HS-Role": "observer"}).json()[0]
+        first.post(f"/api/v2/alerts/{alert['id']}/ack", json={"reason": "received"}, headers={"X-HS-Role": "commander"})
+    with TestClient(app) as second:
+        alerts = second.get("/api/v2/alerts", headers={"X-HS-Role": "observer"}).json()
+        assert alerts[0]["acknowledged"] is True
+
+
 def test_state_change_creates_hash_chained_event(client):
     client.post("/ingest/telemetry", json=TELEMETRY)
     r = client.get("/api/v2/events", headers={"X-HS-Role": "observer"})

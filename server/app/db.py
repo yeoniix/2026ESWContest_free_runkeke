@@ -64,6 +64,38 @@ CREATE TABLE IF NOT EXISTS user_actions (
     reason TEXT NOT NULL,
     gateway_utc TEXT NOT NULL
 );
+
+-- Runtime state is deliberately kept separate from the append-only audit event log.
+-- It lets the gateway recover its current operational picture after a restart.
+CREATE TABLE IF NOT EXISTS device_status (
+    device_id TEXT PRIMARY KEY,
+    last_sequence INTEGER NOT NULL,
+    last_monotonic_ms INTEGER NOT NULL,
+    last_seen_utc TEXT NOT NULL,
+    telemetry_json TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
+    id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    state TEXT NOT NULL,
+    opened_at TEXT NOT NULL,
+    acknowledged INTEGER NOT NULL DEFAULT 0,
+    acknowledged_by TEXT,
+    acknowledged_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_device ON alerts(device_id, acknowledged);
+
+CREATE TABLE IF NOT EXISTS emergencies (
+    id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    opened_at TEXT NOT NULL,
+    open INTEGER NOT NULL DEFAULT 1,
+    closed_by TEXT,
+    closed_at TEXT,
+    close_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_emergencies_device ON emergencies(device_id, open);
 """
 
 
@@ -80,6 +112,67 @@ class GatewayDB:
             (device_id, gateway_utc, sequence, json.dumps(payload, ensure_ascii=False)),
         )
         self._conn.commit()
+
+    def last_sequence(self, device_id: str) -> int | None:
+        row = self._conn.execute(
+            "SELECT last_sequence FROM device_status WHERE device_id = ?", (device_id,)
+        ).fetchone()
+        return int(row[0]) if row else None
+
+    def save_device_status(self, device_id: str, sequence: int, monotonic_ms: int, seen_utc: str, payload: dict) -> None:
+        self._conn.execute(
+            """INSERT INTO device_status(device_id, last_sequence, last_monotonic_ms, last_seen_utc, telemetry_json)
+               VALUES (?,?,?,?,?)
+               ON CONFLICT(device_id) DO UPDATE SET
+                 last_sequence=excluded.last_sequence,
+                 last_monotonic_ms=excluded.last_monotonic_ms,
+                 last_seen_utc=excluded.last_seen_utc,
+                 telemetry_json=excluded.telemetry_json""",
+            (device_id, sequence, monotonic_ms, seen_utc, json.dumps(payload, ensure_ascii=False)),
+        )
+        self._conn.commit()
+
+    def load_device_statuses(self) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT device_id, last_sequence, last_monotonic_ms, last_seen_utc, telemetry_json FROM device_status"
+        ).fetchall()
+        return [
+            {
+                "device_id": row[0], "last_sequence": row[1], "last_monotonic_ms": row[2],
+                "last_seen_utc": row[3], "telemetry": json.loads(row[4]),
+            }
+            for row in rows
+        ]
+
+    def save_alert(self, alert: dict) -> None:
+        self._conn.execute(
+            """INSERT INTO alerts(id, device_id, state, opened_at, acknowledged, acknowledged_by, acknowledged_at)
+               VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(id) DO UPDATE SET acknowledged=excluded.acknowledged,
+                 acknowledged_by=excluded.acknowledged_by, acknowledged_at=excluded.acknowledged_at""",
+            (alert["id"], alert["device_id"], alert["state"], alert["opened_at"], int(alert["acknowledged"]),
+             alert["acknowledged_by"], alert["acknowledged_at"]),
+        )
+        self._conn.commit()
+
+    def load_alerts(self) -> list[dict]:
+        rows = self._conn.execute("SELECT id, device_id, state, opened_at, acknowledged, acknowledged_by, acknowledged_at FROM alerts").fetchall()
+        return [dict(zip(("id", "device_id", "state", "opened_at", "acknowledged", "acknowledged_by", "acknowledged_at"), row), acknowledged=bool(row[4])) for row in rows]
+
+    def save_emergency(self, emergency: dict) -> None:
+        self._conn.execute(
+            """INSERT INTO emergencies(id, device_id, opened_at, open, closed_by, closed_at, close_reason)
+               VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(id) DO UPDATE SET open=excluded.open, closed_by=excluded.closed_by,
+                 closed_at=excluded.closed_at, close_reason=excluded.close_reason""",
+            (emergency["id"], emergency["device_id"], emergency["opened_at"], int(emergency["open"]),
+             emergency["closed_by"], emergency["closed_at"], emergency["close_reason"]),
+        )
+        self._conn.commit()
+
+    def load_emergencies(self) -> list[dict]:
+        rows = self._conn.execute("SELECT id, device_id, opened_at, open, closed_by, closed_at, close_reason FROM emergencies").fetchall()
+        return [dict(zip(("id", "device_id", "opened_at", "open", "closed_by", "closed_at", "close_reason"), row), open=bool(row[3])) for row in rows]
 
     def insert_event(self, event: dict) -> None:
         self._conn.execute(

@@ -6,16 +6,37 @@ import { WS_URL, fetchDevices, fetchEvents } from "../api/gateway";
 import type { EventRecord, Role, TelemetryV2 } from "../types/device";
 
 const MAX_EVENTS = 300;
+const MAX_RISK_POINTS = 60;
+
+export interface RiskPoint {
+  timestamp: string;
+  riskIndex: number;
+}
+
+export type RiskHistory = Record<string, RiskPoint[]>;
+
+function appendRiskPoint(history: RiskHistory, telemetry: TelemetryV2): RiskHistory {
+  if (telemetry.risk_index === 255) return history;
+  const points = history[telemetry.device_id] ?? [];
+  const last = points.at(-1);
+  if (last?.timestamp === telemetry.gateway_utc) return history;
+  return {
+    ...history,
+    [telemetry.device_id]: [...points, { timestamp: telemetry.gateway_utc, riskIndex: telemetry.risk_index }].slice(-MAX_RISK_POINTS),
+  };
+}
 
 export function useLiveDevices(role: Role, actorId: string) {
   const [devices, setDevices] = useState<Record<string, TelemetryV2>>({});
   const [events, setEvents] = useState<EventRecord[]>([]);
+  const [riskHistory, setRiskHistory] = useState<RiskHistory>({});
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
   const applyTelemetry = useCallback((t: TelemetryV2) => {
     setDevices((prev) => ({ ...prev, [t.device_id]: t }));
+    setRiskHistory((prev) => appendRiskPoint(prev, t));
   }, []);
 
   const applyEvent = useCallback((e: EventRecord) => {
@@ -29,6 +50,7 @@ export function useLiveDevices(role: Role, actorId: string) {
         fetchEvents(role, actorId),
       ]);
       setDevices(Object.fromEntries(deviceList.map((d) => [d.device_id, d])));
+      setRiskHistory((prev) => deviceList.reduce(appendRiskPoint, prev));
       setEvents(eventList.slice(-MAX_EVENTS));
       setError(null);
     } catch (err) {
@@ -65,7 +87,9 @@ export function useLiveDevices(role: Role, actorId: string) {
       ws.onmessage = (evt) => {
         const msg = JSON.parse(evt.data);
         if (msg.type === "snapshot") {
-          setDevices(Object.fromEntries((msg.data.devices as TelemetryV2[]).map((d) => [d.device_id, d])));
+          const snapshotDevices = msg.data.devices as TelemetryV2[];
+          setDevices(Object.fromEntries(snapshotDevices.map((d) => [d.device_id, d])));
+          setRiskHistory((prev) => snapshotDevices.reduce(appendRiskPoint, prev));
           setEvents((msg.data.events as EventRecord[]).slice(-MAX_EVENTS));
         } else if (msg.type === "telemetry") {
           applyTelemetry(msg.data as TelemetryV2);
@@ -92,5 +116,5 @@ export function useLiveDevices(role: Role, actorId: string) {
     };
   }, [applyTelemetry, applyEvent, pollOnce]);
 
-  return { devices: Object.values(devices), events, connected, error, refresh: pollOnce };
+  return { devices: Object.values(devices), events, riskHistory, connected, error, refresh: pollOnce };
 }

@@ -48,6 +48,25 @@ class CoolingV2(BaseModel):
     current_ma: int = Field(ge=0)
 
 
+class RawGloveV2(BaseModel):
+    """실제 Heltec 35B 패킷에서 온 원시값. 상태 계산 전에도 관제에 표시한다."""
+
+    gsr: int | None = None
+    gsr_diff: int | None = None
+    ir: int | None = None
+    air_temp_c: float | None = None
+    humidity_percent: float | None = None
+    finger_detected: bool | None = None
+    glove_data: bool | None = None
+    dht_data: bool | None = None
+    gps_fix: bool | None = None
+
+
+class RadioLinkV2(BaseModel):
+    rssi_dbm: int | None = None
+    snr_db: int | None = None
+
+
 class TelemetryV2(BaseModel):
     schema_version: Literal["2.0"] = "2.0"
     gateway_utc: str
@@ -61,6 +80,8 @@ class TelemetryV2(BaseModel):
     cooling: CoolingV2
     contributions: dict[str, float] = Field(default_factory=dict)
     active_errors: list[str] = Field(default_factory=list)
+    raw: RawGloveV2 | None = None
+    radio: RadioLinkV2 | None = None
     config_version: str = "0.2.0"
     sequence: int
 

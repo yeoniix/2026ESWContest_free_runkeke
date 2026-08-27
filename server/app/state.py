@@ -39,8 +39,8 @@ class GatewayStore:
         self._prev_state: dict[str, str] = {}
         self._event_seq = itertools.count(1)
         self._last_event_hash = GENESIS_HASH
-        self.alerts: dict[str, dict[str, Any]] = {}
-        self.emergencies: dict[str, dict[str, Any]] = {}
+        self.alerts: dict[str, dict[str, Any]] = {a["id"]: a for a in db.load_alerts()}
+        self.emergencies: dict[str, dict[str, Any]] = {e["id"]: e for e in db.load_emergencies()}
         self._broadcast: BroadcastFn | None = None
 
         # 재시작 시 마지막 해시를 이어받아 체인이 끊기지 않게 한다.
@@ -48,6 +48,9 @@ class GatewayStore:
         if existing:
             self._last_event_hash = existing[-1]["event_hash"]
             self._event_seq = itertools.count(existing[-1]["seq"] + 1)
+        for status in db.load_device_statuses():
+            self.devices[status["device_id"]] = TelemetryV2.model_validate(status["telemetry"])
+            self._prev_state[status["device_id"]] = self.devices[status["device_id"]].state
 
     def set_broadcaster(self, fn: BroadcastFn) -> None:
         self._broadcast = fn
@@ -60,12 +63,20 @@ class GatewayStore:
     # Telemetry (IF-04의 소프트웨어 등가물: node_sim -> POST /ingest/telemetry)
     # ------------------------------------------------------------------
 
-    async def ingest_telemetry(self, telemetry: TelemetryV2) -> None:
+    async def ingest_telemetry(self, telemetry: TelemetryV2) -> bool:
         device_id = telemetry.device_id
+        last_sequence = self.db.last_sequence(device_id)
+        # IF-04 is at-least-once delivery.  A repeated or out-of-order packet must
+        # never overwrite the newest state or create a second state transition.
+        if last_sequence is not None and telemetry.sequence <= last_sequence:
+            return False
         prev_state = self._prev_state.get(device_id)
         self.devices[device_id] = telemetry
         self.db.insert_telemetry(
             device_id, telemetry.gateway_utc, telemetry.sequence, telemetry.model_dump()
+        )
+        self.db.save_device_status(
+            device_id, telemetry.sequence, telemetry.monotonic_ms, now_utc(), telemetry.model_dump()
         )
         await self._publish({"type": "telemetry", "data": telemetry.model_dump()})
 
@@ -83,6 +94,7 @@ class GatewayStore:
                 self._open_alert(device_id, telemetry.state)
             if telemetry.state == "EMERGENCY" and self._open_emergency_for(device_id) is None:
                 self._open_emergency(device_id)
+        return True
 
     # ------------------------------------------------------------------
     # Events (해시체인)
@@ -150,6 +162,7 @@ class GatewayStore:
             "acknowledged_at": None,
         }
         self.alerts[alert_id] = alert
+        self.db.save_alert(alert)
         return alert
 
     def ack_alert(self, alert_id: str, actor_id: str) -> dict:
@@ -159,6 +172,7 @@ class GatewayStore:
         alert["acknowledged"] = True
         alert["acknowledged_by"] = actor_id
         alert["acknowledged_at"] = now_utc()
+        self.db.save_alert(alert)
         return alert
 
     # ------------------------------------------------------------------
@@ -183,6 +197,7 @@ class GatewayStore:
             "close_reason": None,
         }
         self.emergencies[emergency_id] = emergency
+        self.db.save_emergency(emergency)
         return emergency
 
     def close_emergency(self, emergency_id: str, actor_id: str, reason: str) -> dict:
@@ -195,4 +210,5 @@ class GatewayStore:
         emergency["closed_by"] = actor_id
         emergency["closed_at"] = now_utc()
         emergency["close_reason"] = reason
+        self.db.save_emergency(emergency)
         return emergency

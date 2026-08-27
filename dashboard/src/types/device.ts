@@ -32,6 +32,23 @@ export interface CoolingV2 {
   current_ma: number;
 }
 
+export interface RawGloveV2 {
+  gsr: number | null;
+  gsr_diff: number | null;
+  ir: number | null;
+  air_temp_c: number | null;
+  humidity_percent: number | null;
+  finger_detected: boolean | null;
+  glove_data: boolean | null;
+  dht_data: boolean | null;
+  gps_fix: boolean | null;
+}
+
+export interface RadioLinkV2 {
+  rssi_dbm: number | null;
+  snr_db: number | null;
+}
+
 export interface TelemetryV2 {
   schema_version: "2.0";
   gateway_utc: string;
@@ -45,6 +62,8 @@ export interface TelemetryV2 {
   cooling: CoolingV2;
   contributions: Record<string, number>;
   active_errors: string[];
+  raw?: RawGloveV2 | null;
+  radio?: RadioLinkV2 | null;
   config_version: string;
   sequence: number;
 }

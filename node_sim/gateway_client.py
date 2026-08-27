@@ -8,6 +8,7 @@ GatewayUnavailable로 감싸, run_demo가 사용자에게 친절한 안내를 �
 from __future__ import annotations
 
 import requests
+import os
 
 
 class GatewayUnavailable(RuntimeError):
@@ -15,13 +16,15 @@ class GatewayUnavailable(RuntimeError):
 
 
 class GatewayClient:
-    def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout_s: float = 3.0) -> None:
+    def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout_s: float = 3.0, device_key: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout_s = timeout_s
+        self.device_key = device_key if device_key is not None else os.environ.get("HEATSENTRY_DEVICE_KEY")
 
     def _post(self, path: str, payload: dict) -> dict:
         try:
-            resp = requests.post(f"{self.base_url}{path}", json=payload, timeout=self.timeout_s)
+            headers = {"X-HS-Device-Key": self.device_key} if self.device_key else None
+            resp = requests.post(f"{self.base_url}{path}", json=payload, headers=headers, timeout=self.timeout_s)
             resp.raise_for_status()
             return resp.json()
         except requests.exceptions.ConnectionError as exc:

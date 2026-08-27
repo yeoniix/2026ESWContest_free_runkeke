@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import os
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,9 +46,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="HeatSentry Gateway", version="2.0", lifespan=lifespan)
 
+# A browser dashboard is local by default.  Deployments must list their exact
+# console origins instead of exposing credentialed API calls to every origin.
+allowed_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "HEATSENTRY_CORS_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173"
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

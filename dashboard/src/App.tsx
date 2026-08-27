@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 import { fetchAlerts, fetchEmergencies } from "./api/gateway";
 import CommandConsole from "./components/CommandConsole";
 import DeviceCard from "./components/DeviceCard";
 import EventLog from "./components/EventLog";
+import RiskTrend from "./components/RiskTrend";
 import RoleSwitcher from "./components/RoleSwitcher";
 import { useLiveDevices } from "./hooks/useLiveDevices";
 import type { AlertRecord, EmergencyRecord, Role } from "./types/device";
@@ -18,103 +19,90 @@ function loadActorId(): string {
 
 function App() {
   const [role, setRole] = useState<Role>(loadRole);
-  const [actorId, setActorId] = useState<string>(loadActorId);
+  const [actorId, setActorId] = useState(loadActorId);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [emergencies, setEmergencies] = useState<EmergencyRecord[]>([]);
+  const { devices, events, riskHistory, connected, error } = useLiveDevices(role, actorId);
+  const emergencyCount = devices.filter((device) => device.state === "EMERGENCY").length;
+  const coolingCount = devices.filter((device) => device.state === "COOLING").length;
+  const priorityDevice = [...devices].sort((a, b) => b.risk_index - a.risk_index)[0];
 
-  const { devices, events, connected, error } = useLiveDevices(role, actorId);
+  useEffect(() => localStorage.setItem("hs_role", role), [role]);
+  useEffect(() => localStorage.setItem("hs_actor", actorId), [actorId]);
 
-  useEffect(() => {
-    localStorage.setItem("hs_role", role);
-  }, [role]);
-  useEffect(() => {
-    localStorage.setItem("hs_actor", actorId);
-  }, [actorId]);
-
-  async function refreshConsole() {
+  const refreshConsole = useCallback(async () => {
     try {
-      const [a, e] = await Promise.all([fetchAlerts(role, actorId), fetchEmergencies(role, actorId)]);
-      setAlerts(a);
-      setEmergencies(e);
-    } catch (err) {
-      console.error(err);
+      const [nextAlerts, nextEmergencies] = await Promise.all([
+        fetchAlerts(role, actorId),
+        fetchEmergencies(role, actorId),
+      ]);
+      setAlerts(nextAlerts);
+      setEmergencies(nextEmergencies);
+    } catch {
+      // The live-device connection error already communicates gateway failures.
     }
-  }
-
-  useEffect(() => {
-    // 마운트 시 1회 즉시 조회 + 2초 폴링. refreshConsole은 commander 액션 뒤
-    // 수동 재조회에도 쓰이는 공용 함수라 effect 밖에 두었다.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refreshConsole();
-    const id = window.setInterval(refreshConsole, 2000);
-    return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, actorId]);
 
-  const stateCounts = devices.reduce<Record<string, number>>((acc, d) => {
-    acc[d.state] = (acc[d.state] ?? 0) + 1;
-    return acc;
-  }, {});
+  useEffect(() => {
+    const initial = window.setTimeout(() => void refreshConsole(), 0);
+    const timer = window.setInterval(() => void refreshConsole(), 2000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
+  }, [refreshConsole]);
 
   return (
     <main className="app">
-      <section className="hero">
+      <header className="topbar">
         <div>
-          <p className="eyebrow">HeatSentry Gateway Dashboard · HS-SIID-002 v2.0</p>
-          <h1>손목·허리 폐루프 관제 대시보드</h1>
-          <p className="description">
-            센서 품질 → RiskIndex → 자동 냉각 → 30초 재평가 → SOS → 감사 로그로 이어지는 폐루프를
-            실시간으로 표시합니다. RiskIndex와 피부온도는 의료 진단값이 아닙니다.
-          </p>
+          <p className="eyebrow">HEATSENTRY</p>
+          <h1>실시간 병사 관제</h1>
         </div>
-
-        <div className="status-panel">
-          <div>
-            <span>정상</span>
-            <strong>{stateCounts.NORMAL ?? 0}</strong>
+        <div className="topbar-right">
+          <div className="summary">
+            <span><strong>{devices.length}</strong> 연결</span>
+            <span className={coolingCount > 0 ? "summary-cooling" : ""}><strong>{coolingCount}</strong> 냉각</span>
+            <span className={emergencyCount > 0 ? "summary-emergency" : ""}><strong>{emergencyCount}</strong> 위급</span>
           </div>
-          <div>
-            <span>경고</span>
-            <strong>{stateCounts.WARNING ?? 0}</strong>
-          </div>
-          <div>
-            <span>냉각</span>
-            <strong>{stateCounts.COOLING ?? 0}</strong>
-          </div>
-          <div>
-            <span>응급</span>
-            <strong>{stateCounts.EMERGENCY ?? 0}</strong>
-          </div>
+          <span className={`connection ${connected ? "online" : "offline"}`}>
+            <i />
+            {connected ? "실시간 연결" : "연결 대기"}
+          </span>
+          <RoleSwitcher role={role} actorId={actorId} onRoleChange={setRole} onActorChange={setActorId} />
         </div>
-      </section>
-
-      <section className="toolbar">
-        <span>연결 상태: {connected ? "WebSocket 연결됨" : "REST 폴백 중"}</span>
-        <RoleSwitcher role={role} actorId={actorId} onRoleChange={setRole} onActorChange={setActorId} />
-      </section>
+      </header>
 
       {error && <div className="error">{error}</div>}
 
-      <section className="grid">
+      <section className="soldier-grid" aria-label="병사 상태 카드">
         {devices.length === 0 && !error ? (
           <div className="empty">
-            아직 수신된 장치 데이터가 없습니다. 게이트웨이(uvicorn server.app.main:app)와 node_sim(python -m
-            node_sim.run_demo)을 먼저 실행하세요.
+            수신된 병사 데이터가 없습니다.
           </div>
         ) : (
           devices.map((t) => <DeviceCard key={t.device_id} telemetry={t} />)
         )}
       </section>
 
-      <CommandConsole
-        alerts={alerts}
-        emergencies={emergencies}
-        role={role}
-        actorId={actorId}
-        onChanged={refreshConsole}
-      />
+      <section className="operations-grid" aria-label="위험도 추이와 관제 요약">
+        {priorityDevice ? (
+          <RiskTrend deviceId={priorityDevice.device_id} points={riskHistory[priorityDevice.device_id] ?? []} />
+        ) : (
+          <section className="risk-trend trend-placeholder"><p>RISK INDEX TREND</p><h2>수신 대기 중</h2></section>
+        )}
+        <section className="operations-summary">
+          <p className="eyebrow">OPERATIONS SUMMARY</p>
+          <h2>우선 대응</h2>
+          <div className="priority-row"><span>확인 대기 경보</span><strong>{alerts.filter((alert) => !alert.acknowledged).length}</strong></div>
+          <div className="priority-row emergency-row"><span>열린 응급 상황</span><strong>{emergencies.filter((emergency) => emergency.open).length}</strong></div>
+          <p className="priority-note">경보 확인은 수신 기록이며, 장치의 응급 래치를 해제하지 않습니다.</p>
+        </section>
+      </section>
 
+      <CommandConsole alerts={alerts} emergencies={emergencies} role={role} actorId={actorId} onChanged={() => void refreshConsole()} />
       <EventLog events={events} role={role} actorId={actorId} />
+
     </main>
   );
 }

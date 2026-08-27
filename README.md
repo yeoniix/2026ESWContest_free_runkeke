@@ -67,6 +67,19 @@ pip install -r server/requirements.txt
 uvicorn server.app.main:app --reload --port 8000
 ```
 
+실장 환경에서는 장치별 비밀키를 반드시 등록한다. 키가 비어 있으면 시뮬레이터 호환을 위한
+개발 모드이며 `/ingest/*` 인증이 수행되지 않는다.
+
+```bash
+export HEATSENTRY_DEVICE_KEYS='{"HS-W-001":"change-this-device-secret"}'
+export HEATSENTRY_DEVICE_KEY='change-this-device-secret'  # node_sim 실행 터미널
+export HEATSENTRY_CORS_ORIGINS='http://127.0.0.1:5173'
+```
+
+장치 키가 설정되면 모든 `/ingest/*` 요청은 `X-HS-Device-Key`가 일치해야 한다. 텔레메트리는
+장치별 `sequence`가 증가할 때만 반영되므로, BLE/HTTP 재전송이 현재 상태나 감사 이벤트를
+중복으로 덮어쓰지 않는다.
+
 ### 2) 손목+허리 노드 시뮬레이터
 
 ```bash
