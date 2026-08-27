@@ -3,9 +3,9 @@ import "./App.css";
 import { fetchAlerts, fetchEmergencies } from "./api/gateway";
 import CommandConsole from "./components/CommandConsole";
 import DeviceCard from "./components/DeviceCard";
-import EventLog from "./components/EventLog";
 import RiskTrend from "./components/RiskTrend";
 import RoleSwitcher from "./components/RoleSwitcher";
+import TacticalMap from "./components/TacticalMap";
 import { useLiveDevices } from "./hooks/useLiveDevices";
 import type { AlertRecord, EmergencyRecord, Role } from "./types/device";
 
@@ -22,7 +22,7 @@ function App() {
   const [actorId, setActorId] = useState(loadActorId);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [emergencies, setEmergencies] = useState<EmergencyRecord[]>([]);
-  const { devices, events, riskHistory, connected, error } = useLiveDevices(role, actorId);
+  const { devices, riskHistory, connected, error } = useLiveDevices(role, actorId);
   const emergencyCount = devices.filter((device) => device.state === "EMERGENCY").length;
   const coolingCount = devices.filter((device) => device.state === "COOLING").length;
   const priorityDevice = [...devices].sort((a, b) => b.risk_index - a.risk_index)[0];
@@ -100,8 +100,9 @@ function App() {
         </section>
       </section>
 
+      <TacticalMap devices={devices} />
+
       <CommandConsole alerts={alerts} emergencies={emergencies} role={role} actorId={actorId} onChanged={() => void refreshConsole()} />
-      <EventLog events={events} role={role} actorId={actorId} />
 
     </main>
   );

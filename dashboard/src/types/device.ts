@@ -42,6 +42,8 @@ export interface RawGloveV2 {
   glove_data: boolean | null;
   dht_data: boolean | null;
   gps_fix: boolean | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface RadioLinkV2 {

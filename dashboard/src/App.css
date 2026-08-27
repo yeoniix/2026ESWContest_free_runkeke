@@ -229,6 +229,11 @@ h1 { font-size: 32px; letter-spacing: -.04em; }
 .priority-row strong { font-size: 26px; }.emergency-row strong { color: #f87171; }
 .priority-note, .console-item-note { margin-top: 15px; color: #8b9aae; font-size: 12px; line-height: 1.5; }
 
+.tactical-map { margin-top: 24px; padding: 22px; border: 1px solid #334155; border-radius: 14px; background: #1e293b; }
+.map-content { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }.kakao-map { min-height: 310px; border-radius: 10px; overflow: hidden; background: #162133; }
+.location-list { display: grid; align-content: start; gap: 8px; }.location-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border-radius: 9px; background: #162133; }.location-row strong, .location-row span { display: block; }.location-row span { margin-top: 4px; color: #8b9aae; font: 11px ui-monospace, monospace; }.location-row b { font-size: 12px; }.location-row b.safe { color: #6ee7b7; }.location-row b.danger { color: #f87171; }.map-empty, .map-empty-inline { color: #8b9aae; font-size: 13px; }.map-empty { display: grid; place-items: center; min-height: 150px; border-radius: 10px; background: #162133; }.map-error { margin: 0; color: #fca5a5; font-size: 12px; }
+.kakao-device-marker { position: relative; display: grid; place-items: center; width: 14px; height: 14px; padding: 0; border: 0; border-radius: 50%; background: #6ee7b7; box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(15, 23, 42, .55); cursor: pointer; }.kakao-device-marker span { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 3px 5px; border-radius: 4px; color: #f8fafc; background: rgba(15, 23, 42, .9); font: 700 10px/1.1 system-ui, sans-serif; white-space: nowrap; }.kakao-device-marker i { display: block; width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,.7); }.kakao-device-marker.danger { background: #dc2626; }
+
 .console-panel, .event-log-panel { margin-top: 24px; }
 .section-header { margin-bottom: 18px; }.section-header > span { color: #8b9aae; font-size: 12px; }
 .console-column h3 { margin: 0 0 12px; font-size: 15px; }.empty-inline { color: #8b9aae; font-size: 13px; }
@@ -246,6 +251,7 @@ h1 { font-size: 32px; letter-spacing: -.04em; }
 @media (max-width: 900px) {
   .soldier-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .operations-grid, .console-columns { grid-template-columns: 1fr; }
+  .map-content { grid-template-columns: 1fr; }
   .event-row { grid-template-columns: 44px 1fr 1fr; }.event-reason, .event-time, .event-hash { display: none; }
 }
 

@@ -60,6 +60,8 @@ class RawGloveV2(BaseModel):
     glove_data: bool | None = None
     dht_data: bool | None = None
     gps_fix: bool | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
 
 
 class RadioLinkV2(BaseModel):

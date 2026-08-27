@@ -91,6 +91,7 @@ export default function DeviceCard({ telemetry }: DeviceCardProps) {
           <span>환경 <strong>{telemetry.raw.air_temp_c ?? "—"}℃ / {telemetry.raw.humidity_percent ?? "—"}%</strong></span>
           <span>Finger <strong>{telemetry.raw.finger_detected ? "YES" : "NO"}</strong></span>
           <span>LoRa <strong>{telemetry.radio?.rssi_dbm ?? "—"} dBm</strong></span>
+          <span>GPS <strong>{telemetry.raw.gps_fix ? `${telemetry.raw.latitude?.toFixed(5) ?? "—"}, ${telemetry.raw.longitude?.toFixed(5) ?? "—"}` : "NO FIX"}</strong></span>
         </div>
       )}
 

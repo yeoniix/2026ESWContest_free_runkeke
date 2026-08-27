@@ -73,3 +73,17 @@ export default defineConfig([
 ])
 
 ```
+# HeatSentry Dashboard
+
+## Kakao Map 설정
+
+GPS 장치를 실제 지도에 표시하려면 Kakao Developers에서 **JavaScript 키**를 발급하고,
+`.env.example`을 복사해 `.env.local`에 아래처럼 설정한다. `.env.local`은 커밋하지 않는다.
+
+```bash
+cp .env.example .env.local
+```
+
+Kakao Developers의 앱 플랫폼(Web)에 `http://localhost:5173`과 실제 운영 도메인을 등록해야 한다.
+GPS Fix가 있는 장치는 지도에서 표시되고, `WARNING`·`COOLING`·`EMERGENCY` 장치는 빨간색
+마커로 표시된다.
