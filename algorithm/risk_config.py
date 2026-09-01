@@ -1,4 +1,4 @@
-"""RiskIndex v0.2 / FSM 설정값.
+"""RiskIndex v0.3 / FSM 설정값.
 
 형상관리 원칙(HS-SIID-002 표1): risk_config_version은 가중치·임계값이 바뀔 때마다
 증가한다. 이 파일 하나만 바꾸면 되도록 숫자를 전부 여기 모아둔다.
@@ -13,12 +13,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-RISK_CONFIG_VERSION = "0.2.0"
+RISK_CONFIG_VERSION = "0.3.0"
 
 
 @dataclass(frozen=True)
 class RiskWeights:
-    """PDD 표9 RiskIndex v0.2 기본 가중치. 합계 1.00."""
+    """PDD 표9 RiskIndex 기본 가중치. 합계 1.00."""
 
     HR_dev: float = 0.25
     HRV_suppression: float = 0.10
@@ -40,11 +40,12 @@ class RiskWeights:
 
 @dataclass(frozen=True)
 class QualityGates:
-    """PDD p5 "센서 배치와 품질 게이트" #14 & E101~E104."""
+    """PDD p5 "센서 배치와 품질 게이트" 및 E101~E105."""
 
     ppg_quality_min: int = 70  # 미만이면 HR/HRV 제외 (E101)
     eda_quality_min: int = 40  # 미만이면 EDA 제외 (E102)
     skin_temp_stale_s: float = 3.0  # 이상이면 피부온도 제외 (E103)
+    env_quality_min: int = 50  # DHT 등 환경 센서 품질 미달 시 EnvHeatProxy 제외 (E105)
     min_valid_weight: float = 0.60  # 미만이면 SENSOR_LIMITED (ALG-002)
 
 

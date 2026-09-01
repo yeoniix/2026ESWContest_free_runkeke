@@ -12,7 +12,7 @@
       "quality": {"ppg": 82, "skin": 96, "eda": 55, "imu": 100},
       "signals": {"hr_bpm": 148, "skin_c": 35.72, "activity": "RUN"},
       "cooling": {"requested": 2, "actual_pwm": 60, "current_ma": 284},
-      "config_version": "0.2.0",
+    "config_version": "0.3.0",
       "sequence": 1842
     }
 """
@@ -84,7 +84,7 @@ class TelemetryV2(BaseModel):
     active_errors: list[str] = Field(default_factory=list)
     raw: RawGloveV2 | None = None
     radio: RadioLinkV2 | None = None
-    config_version: str = "0.2.0"
+    config_version: str = "0.3.0"
     sequence: int
 
 

@@ -15,6 +15,8 @@ class TelemetryFlags(IntFlag):
     DHT_DATA = 1 << 1
     GPS_FIX = 1 << 2
     FINGER_DETECTED = 1 << 3
+    EMERGENCY = 1 << 4
+    FAN_ON = 1 << 5
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,22 @@ class GloveTelemetryPacket:
     @property
     def sensor_ready(self) -> bool:
         return self.glove_available and self.finger_detected and self.bpm > 0
+
+    @property
+    def dht_available(self) -> bool:
+        return bool(self.flags & TelemetryFlags.DHT_DATA)
+
+    @property
+    def gps_fix(self) -> bool:
+        return bool(self.flags & TelemetryFlags.GPS_FIX)
+
+    @property
+    def emergency_active(self) -> bool:
+        return bool(self.flags & TelemetryFlags.EMERGENCY)
+
+    @property
+    def fan_on(self) -> bool:
+        return bool(self.flags & TelemetryFlags.FAN_ON)
 
 
 def decode_glove_telemetry(payload: bytes) -> GloveTelemetryPacket:

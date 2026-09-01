@@ -1,4 +1,4 @@
-# RiskIndex v0.2 알고리즘
+# RiskIndex v0.3 알고리즘
 
 > 기준 문서: HS-PDD-002 v2.0 "위험도 엔진과 데이터 전략". 구현: `algorithm/risk_engine.py`,
 > `algorithm/baseline.py`, `algorithm/risk_config.py`.
@@ -48,6 +48,51 @@ HardTrigger = manual_sos OR (fall AND no_motion AND no_response)
 `algorithm/risk_engine.py` 상단에 "설계 기본값" 주석으로 표시해 뒀고, 실측 데이터가 쌓이면
 `risk_config_version`을 올리면서 바꾸면 된다.
 
+## 현재 ESP32 하드웨어 프로파일
+
+현재 35바이트 LoRa 패킷에는 HRV와 IMU 활동량이 없다. `algorithm/hardware_adapter.py`는
+그 사실을 명시적으로 반영해 아래 네 특징만 계산한다.
+
+| 실물 입력 | RiskIndex 특징 | 계산 방식 |
+| --- | --- | --- |
+| BPM + Finger | HR_dev | 개인 기준 심박 대비 편차 |
+| 피부온도 연속값 | SkinTemp_slope | 최근 60초 상승률 |
+| GSR Diff | EDA_delta | 장갑 보정값 대비 양의 변화량 |
+| DHT11 온도·습도 | EnvHeatProxy | 상대 열부하(비-WBGT) |
+
+HRV와 `ActivityLoad`는 0점으로 취급하지 않고 품질 게이트에서 제외한다. DHT11까지
+정상이면 유효 가중치는 `0.25 + 0.20 + 0.10 + 0.20 = 0.75`이며, DHT11이 없으면
+0.55가 되어 `SENSOR_LIMITED`가 된다. GPS 속도나 IR 원시값으로 활동량을 억지로
+추정하지 않는다. GPS Fix가 없거나 손가락 미착용인 현재 사진 같은 경우에는
+`SENSOR_CHECK`로 처리하며 RiskIndex를 계산하지 않는다.
+
+## PPT 설명용 계산 예시
+
+현재 ESP32 하드웨어 프로파일의 발표용 식은 다음과 같다. 분모 0.75는 실제로 받을 수 없는
+HRV(0.10)와 IMU 활동량(0.15)을 제외한 가중치 합이다.
+
+```text
+RiskIndex = 100 × (0.25×H + 0.20×T + 0.10×G + 0.20×E) / 0.75
+
+H: 심박 편차         = clamp((BPM - 개인 기준 BPM) / (4 × BPM MAD), 0, 1)
+T: 피부온도 상승률   = clamp(피부온도 상승률(°C/min) / 0.30, 0, 1)
+G: GSR 변화          = clamp(GSR Diff / 300, 0, 1)
+E: 환경 열부하       = clamp((기온 - 20)/20 + (습도 - 40)/200, 0, 1)
+```
+
+아래 표는 개인 기준 BPM 80, BPM MAD 5, GSR Diff 기준값 0을 가정한 설명용 예시다.
+상태 전이는 점수뿐 아니라 해당 점수가 일정 시간 유지되는지도 함께 확인한다.
+
+| 상황 | BPM | 피부온도 상승률 | GSR Diff | 기온/습도 | H / T / G / E | RiskIndex | 설명 |
+| --- | ---: | ---: | ---: | --- | --- | ---: | --- |
+| 정상 | 82 | 0.03°C/min | +15 | 26°C / 55% | 0.10 / 0.10 / 0.05 / 0.38 | 17 | 정상 범위 |
+| 경고 | 100 | 0.12°C/min | +90 | 31°C / 70% | 1.00 / 0.40 / 0.30 / 0.70 | 67 | 10초 이상이면 WARNING |
+| 냉각 C1 | 110 | 0.21°C/min | +180 | 34°C / 80% | 1.00 / 0.70 / 0.60 / 0.90 | 84 | 10초 이상이면 팬 50% 권고 |
+
+예를 들어 냉각 C1 행은 `100 × (0.25×1.00 + 0.20×0.70 + 0.10×0.60 +
+0.20×0.90) / 0.75 = 84`로 계산한다. 이 값은 의료 진단값이 아니라 현장 경보와
+냉각 우선순위를 정하기 위한 상대 위험도다.
+
 ## 품질 게이트와 오류코드
 
 | 오류코드 | 조건 | 제외되는 특징 |
@@ -56,6 +101,7 @@ HardTrigger = manual_sos OR (fall AND no_motion AND no_response)
 | E102 | EDA 접촉 손실(Quality<40) | EDA_delta |
 | E103 | 피부온도 갱신 지연>3초 | SkinTemp_slope |
 | E104 | IMU 응답 없음 | ActivityLoad(+ 낙상 검출 비활성) |
+| E105 | 환경 온습도 데이터 없음/저품질 | EnvHeatProxy |
 
 전체 오류코드 표와 로컬/관제 동작은 [../firmware/api_contract.md](../firmware/api_contract.md),
 구현은 `common/errors.py`.

@@ -29,7 +29,7 @@ class Baseline:
 @dataclass
 class BaselineSample:
     hr_bpm: float
-    hrv_rmssd: float
+    hrv_rmssd: float | None
     skin_temp_c: float
     eda_norm: float
     quality_ppg: int
@@ -73,7 +73,8 @@ class BaselineBuilder:
         if not self._samples:
             return None
         hr_med, hr_mad = _median_mad([s.hr_bpm for s in self._samples])
-        hrv_med, _ = _median_mad([s.hrv_rmssd for s in self._samples])
+        hrv_values = [s.hrv_rmssd for s in self._samples if s.hrv_rmssd is not None]
+        hrv_med, _ = _median_mad(hrv_values) if hrv_values else (0.0, 0.0)
         skin_med, _ = _median_mad([s.skin_temp_c for s in self._samples])
         eda_med, _ = _median_mad([s.eda_norm for s in self._samples])
         return Baseline(

@@ -47,7 +47,7 @@ GATT 서비스, 오류코드)은 `common/`에 있고, 나중에 실물 BLE로 �
 
 ```
 common/       바이너리 패킷(HS_STATUS/COOL_CMD/COOL_ACK), 해시체인, 오류코드, 게이트웨이 스키마
-algorithm/    RiskIndex v0.2 엔진, 기준선(Baseline), 안전 상태기계(FSM), 설정값
+algorithm/    RiskIndex v0.3 엔진, 기준선(Baseline), 안전 상태기계(FSM), ESP32 하드웨어 어댑터
 server/       게이트웨이(FastAPI): REST v2 + WebSocket + 역할기반 확인 + SQLite 해시체인 로그
 firmware/     ESP32 펌웨어, 통신 계약, 손목/허리/환경 노드 시뮬레이터
 tests/        pytest — 패킷, 해시체인, RiskIndex, FSM, 게이트웨이 API, 시나리오 통합 시험
@@ -118,7 +118,7 @@ npx eslint .
 
 - [docs/concept.md](docs/concept.md) — 제품 개념, 서브시스템 책임, 안전 경계
 - [docs/architecture.md](docs/architecture.md) — 인터페이스 목록, 상태기계, 명령 중재, 코드 매핑
-- [docs/ai_pipeline.md](docs/ai_pipeline.md) — RiskIndex v0.2 공식·가중치·품질 게이트·기준선
+- [docs/ai_pipeline.md](docs/ai_pipeline.md) — RiskIndex v0.3 공식·하드웨어 4특징·품질 게이트·기준선
 - [docs/demo_scenario.md](docs/demo_scenario.md) — 실행 방법, 시험 벡터 ↔ 시나리오 매핑, 140초 시연 대본
 - [docs/aar_design.md](docs/aar_design.md) — 데이터 보존, 해시체인 무결성, 내보내기, 개인정보 최소화
 - [firmware/api_contract.md](firmware/api_contract.md) — GATT 서비스, 패킷 바이트 레이아웃, 오류코드, 저하 모드
@@ -142,6 +142,6 @@ npx eslint .
 ## 참고자료
 
 부품 사양과 안전·환경 지표의 1차 출처는 `HS-PDD-002`/`HS-SIID-002` 문서의 참고자료 절(NIOSH
-열 스트레스 권고, NIOSH/OSHA WBGT 안내, nRF52840/MAX86141/TMP117/ICM-42688-P/SHT41/INA260/
+열 스트레스 권고, NIOSH/OSHA WBGT 안내, ESP32/MAX30102/TMP117/GSR/DHT11/
 BQ24074/Raspberry Pi 5/Wio-E5 데이터시트)을 따른다. 구매·인증·현장 적용 전 최신 개정본을
 재확인한다.

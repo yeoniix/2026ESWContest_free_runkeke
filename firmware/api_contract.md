@@ -10,7 +10,7 @@
 | 항목 | 기준 | 이 저장소 위치 |
 | --- | --- | --- |
 | protocol_version | 2 | `common/PROTOCOL_VERSION`, `common/packets.py` |
-| risk_config_version | 0.2.0 | `algorithm/risk_config.py`의 `RISK_CONFIG_VERSION` |
+| risk_config_version | 0.3.0 | `algorithm/risk_config.py`의 `RISK_CONFIG_VERSION` |
 | gateway_schema | 2.0 | `common/GATEWAY_SCHEMA_VERSION`, `common/schema.py` |
 | test_vector | TV-20260808-A | `firmware/simulator/scenarios.py` (결정적 재생, 난수 없음) |
 
@@ -58,10 +58,16 @@ little-endian이므로 서버/게이트웨이 디코더도 같은 순서(`<HBBHB
 | 1 | DHT11 데이터 유효 |
 | 2 | GPS Fix 유효 |
 | 3 | Finger 감지 |
+| 4 | 벨트 비상 버튼 활성 |
+| 5 | 벨트 팬 ON |
 
 `Finger=NO`, `BPM=0`, 또는 장갑 데이터 무효는 위험점수 0이 아니라 LCD의
 `SENSOR CHECK / WEAR GLOVE` 상태로 처리한다. 이 LoRa payload는 현장 하드웨어
 중간 형식이며, 게이트웨이 API의 `TelemetryV2`와는 별개다.
+
+현재 ESP32 패킷에는 HRV와 IMU 활동량이 없으므로 `algorithm/hardware_adapter.py`는
+HR·피부온도 상승률·GSR 변화·온습도 환경열부하 4개 특징만 사용한다. 없는 두 특징은
+0으로 넣지 않고 가중치에서 제외한 뒤 남은 0.75 가중치로 재정규화한다.
 
 **공통 헤더 + HS_STATUS (24B)** — `common/packets.py`의 `HsStatus`:
 
@@ -150,6 +156,7 @@ little-endian이므로 서버/게이트웨이 디코더도 같은 순서(`<HBBHB
 | E102 | EDA 접촉 손실 | EDA 가중치 제외 | 회색 입력 | EDA_delta 제외 |
 | E103 | 피부온도 오류 | 온도 가중치 제외 | 센서 오류 | SkinTemp_slope 제외 |
 | E104 | IMU 응답 없음 | 낙상 비활성·위험표시 | 기능 제한 | ActivityLoad 제외 |
+| E105 | 환경 온습도 데이터 없음/저품질 | 환경열부하 제외 | 환경 센서 오류 | EnvHeatProxy 제외 |
 | E201 | BLE 10초 손실 | 재연결·팬 안전타이머 | 통신 손실 | — |
 | E301 | 팬 과전류/정지 | 팬 OFF | 긴급 장치오류 | — |
 | E302 | 배터리 10% 이하 | 출력 제한 | 저배터리 | — |

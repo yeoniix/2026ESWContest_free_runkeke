@@ -1,4 +1,4 @@
-"""RiskIndex v0.2 엔진.
+"""RiskIndex v0.3 엔진.
 
 출처: HS-PDD-002 p8 "위험도 엔진과 데이터 전략".
 
@@ -35,12 +35,12 @@ class SensorSample:
     """
 
     hr_bpm: float
-    hrv_rmssd: float
+    hrv_rmssd: float | None
     skin_temp_c: float
     skin_temp_slope_c_per_min: float
     eda_delta_norm: float  # 개인 기준 대비 변화량, 0~1로 이미 정규화됨
-    activity_load: float  # IMU 기반 활동 강도 0~1
-    env_heat_proxy: float  # EnvHeatProxy 0~1 (WBGT_ref와 별도, PDD p7)
+    activity_load: float | None  # IMU 기반 활동 강도 0~1
+    env_heat_proxy: float | None  # EnvHeatProxy 0~1 (WBGT_ref와 별도, PDD p7)
 
     fall_detected: bool = False
     no_motion: bool = False
@@ -51,6 +51,7 @@ class SensorSample:
     quality_eda: int = 100
     skin_temp_stale_s: float = 0.0
     imu_ok: bool = True
+    quality_env: int = 100
 
 
 @dataclass
@@ -72,7 +73,7 @@ def compute_features(sample: SensorSample, baseline: Baseline) -> dict[str, floa
     hr_z = (sample.hr_bpm - baseline.hr_median) / baseline.hr_mad
     hr_dev = _clamp01(hr_z / HR_DEV_SATURATION_STD)
 
-    if baseline.hrv_median > 0:
+    if sample.hrv_rmssd is not None and baseline.hrv_median > 0:
         hrv_drop_ratio = (baseline.hrv_median - sample.hrv_rmssd) / baseline.hrv_median
     else:
         hrv_drop_ratio = 0.0
@@ -82,10 +83,12 @@ def compute_features(sample: SensorSample, baseline: Baseline) -> dict[str, floa
         sample.skin_temp_slope_c_per_min / SKIN_SLOPE_SATURATION_C_PER_MIN
     )
 
-    eda_delta = _clamp01(sample.eda_delta_norm / EDA_DELTA_SATURATION)
+    eda_delta = _clamp01(
+        (sample.eda_delta_norm - baseline.eda_median) / EDA_DELTA_SATURATION
+    )
 
-    activity_load = _clamp01(sample.activity_load)
-    env_heat_proxy = _clamp01(sample.env_heat_proxy)
+    activity_load = _clamp01(sample.activity_load) if sample.activity_load is not None else 0.0
+    env_heat_proxy = _clamp01(sample.env_heat_proxy) if sample.env_heat_proxy is not None else 0.0
 
     return {
         "HR_dev": hr_dev,
@@ -116,18 +119,30 @@ def _quality_multipliers(sample: SensorSample, config: RiskConfig) -> tuple[dict
         errors.append(ErrorCode.E103)
     q_skin = 1.0 if skin_ok else 0.0
 
-    if not sample.imu_ok:
+    activity_ok = sample.imu_ok and sample.activity_load is not None
+    if not activity_ok:
         errors.append(ErrorCode.E104)
-    q_activity = 1.0 if sample.imu_ok else 0.0
+    q_activity = 1.0 if activity_ok else 0.0
+
+    hrv_ok = ppg_ok and sample.hrv_rmssd is not None
+    q_hrv = (sample.quality_ppg / 100.0) if hrv_ok else 0.0
+
+    env_ok = (
+        sample.env_heat_proxy is not None
+        and sample.quality_env >= gates.env_quality_min
+    )
+    if not env_ok:
+        errors.append(ErrorCode.E105)
+    q_env = (sample.quality_env / 100.0) if env_ok else 0.0
 
     return (
         {
             "HR_dev": q_hr,
-            "HRV_suppression": q_hr,  # HRV도 PPG 파생값이므로 같은 게이트 적용
+            "HRV_suppression": q_hrv,
             "SkinTemp_slope": q_skin,
             "EDA_delta": q_eda,
             "ActivityLoad": q_activity,
-            "EnvHeatProxy": 1.0,  # 환경 노드는 별도 품질 게이트가 문서에 없음
+            "EnvHeatProxy": q_env,
         },
         errors,
     )

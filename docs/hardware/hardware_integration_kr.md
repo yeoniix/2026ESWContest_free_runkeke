@@ -38,17 +38,19 @@ HeatSentry는 의료 진단 장비가 아니다. 표시되는 심박, 피부온�
 
 ### 1.2 GitHub 저장소에서 구현된 기능
 
-- Python 기반 RiskIndex/FSM 알고리즘과 결정적 시뮬레이터
+- Python 기반 RiskIndex/FSM 알고리즘, ESP32 4특징 어댑터와 결정적 시뮬레이터
 - FastAPI 게이트웨이의 `/ingest/*`, `/api/v2/*`, `/ws/live`
 - SQLite 텔레메트리·이벤트 저장 및 이벤트 해시체인
 - React/Vite 실시간 관제 대시보드
 - 장치 상태 카드, 위험도 추이, 경보 확인, 응급 확인 기록, GPS 카카오맵
-- 실물 벨트의 35바이트 LoRa 패킷을 푸는 Python 디코더 `common/glove_packets.py`
+- 실물 벨트의 35바이트 LoRa 패킷을 푸는 Python 디코더와 RiskIndex 어댑터
+  (`common/glove_packets.py`, `algorithm/hardware_adapter.py`, `server/app/lora_adapter.py`)
 
 ### 1.3 아직 자동으로 연결되지 않은 부분
 
 현재 저장소에는 **LoRa 전파를 실제로 수신하여 35바이트를 Python에 넘기는 베이스 수신기/시리얼
-브리지 프로그램이 없다.** 따라서 벨트의 `LoRa TX DONE`만으로 대시보드에 자동 표시되는 것은 아니다.
+브리지 프로그램이 없다.** `server/app/lora_adapter.py`는 수신기가 넘긴 payload를 관제
+Telemetry로 바꾸지만, USB 시리얼을 읽는 실행 프로세스는 아직 추가해야 한다.
 
 또한 현재 35바이트 LoRa 패킷에는 센서값과 플래그만 있고 다음 값이 없다.
 
@@ -57,8 +59,9 @@ HeatSentry는 의료 진단 장비가 아니다. 표시되는 심박, 피부온�
 - 정확한 `fanPercent`
 - `risk_index`
 
-따라서 현재 패킷만으로는 대시보드가 벨트의 `WARNING`, `DANGER`, `HIGH_RISK`를 완전히 구분할 수
-없다. 이 문서의 12장에서 다음 두 연결 방법을 설명한다.
+따라서 현재 패킷만으로는 벨트가 판정한 `WARNING`, `DANGER`, `HIGH_RISK`를 그대로 알 수는 없다.
+다만 `server/app/lora_adapter.py`는 수신한 실물값으로 동일한 4특징 RiskIndex를 계산해 관제용
+상태를 만들 수 있다. 이 문서의 12장에서 다음 두 연결 방법을 설명한다.
 
 1. 펌웨어를 바꾸지 않고 35바이트를 사용하여 원시 센서·GPS와 제한된 상태를 표시하는 방법
 2. 벨트를 상태 판단의 유일한 기준으로 유지하기 위해 LoRa 패킷에 상태 필드를 추가하는 권장 방법
@@ -504,7 +507,7 @@ magic, version을 넣은 새 프로토콜로 교체하는 편이 좋다.
 주의할 점은 온도 조건이 기준선 완료 여부보다 먼저 검사된다는 것이다. 기준선 측정 중이라도 피부온도가
 29°C 이상이면 즉시 `WARNING` 또는 `DANGER`가 된다.
 
-현재 FSM은 GitHub `algorithm/`의 전체 RiskIndex v0.2 알고리즘을 벨트에 포팅한 것이 아니다.
+현재 FSM은 GitHub `algorithm/`의 전체 RiskIndex v0.3 알고리즘을 벨트에 포팅한 것이 아니다.
 현재 실물 벨트 판정은 피부온도, 손가락/BPM 유효성, 비상 버튼을 이용한 단순 MVP 로직이다. BPM,
 GSR, 환경온도는 LoRa 텔레메트리에 포함되지만 `makeDisplayStatus()`의 상태 계산에는 아직 사용되지
 않는다.
@@ -687,7 +690,32 @@ extended_sequence = wrap_count * 65536 + new_raw
 {"payload_hex":"5aa501010100...총35바이트...","rssi_dbm":-71,"snr_db":8}
 ```
 
-### 12.2 현재 35바이트를 그대로 쓰는 최소 브리지
+### 12.2 권장: 35바이트 실물값으로 RiskIndex 계산하는 브리지
+
+수신기 프로세스는 `LoRaTelemetryAdapter`를 한 번 생성한 뒤 패킷마다 재사용한다. 이 어댑터는
+3~5분 유효 착용 구간으로 개인 기준선을 만들고, HR·피부온도 상승률·GSR 변화·온습도 열부하만으로
+RiskIndex를 계산한다. HRV와 IMU 활동량은 없는 값으로 0을 넣지 않고 가중치에서 제외한다.
+
+```python
+import requests
+
+from server.app.lora_adapter import LoRaTelemetryAdapter
+
+GATEWAY_URL = "http://127.0.0.1:8000/ingest/telemetry"
+adapter = LoRaTelemetryAdapter()
+
+
+def handle_packet(payload: bytes, rssi: int, snr: int) -> None:
+    telemetry = adapter.convert(payload, rssi_dbm=rssi, snr_db=snr)
+    response = requests.post(GATEWAY_URL, json=telemetry.model_dump(), timeout=3)
+    response.raise_for_status()
+```
+
+손가락 미착용, BPM 범위 밖, 장갑 데이터 무효인 경우에는 `FAULT`/`SENSOR_CHECK`으로 처리하고
+RiskIndex를 계산하지 않는다. DHT11 데이터가 없으면 유효 가중치가 0.55가 되어
+`SENSOR_LIMITED`로 표시된다.
+
+### 12.3 이전 raw-only 최소 브리지
 
 다음은 수신기에서 `payload: bytes`, `rssi: int`, `snr: int`를 얻은 뒤 사용할 변환의 기준이다.
 현재 패킷에는 벨트의 state와 RiskIndex가 없으므로 `risk_index=255`로 두고 제한된 상태만 추정한다.
@@ -794,7 +822,7 @@ def post_telemetry(data: dict) -> None:
 이 방식으로 장치 카드의 BPM, 피부온도, GSR, 환경온도·습도, Finger, RSSI, GPS와 지도는 표시할
 수 있다. 그러나 `WARNING`과 `DANGER`, 정확한 RiskIndex는 패킷에 없으므로 복원할 수 없다.
 
-### 12.3 벨트 판정을 그대로 대시보드에 띄우는 권장 확장
+### 12.4 벨트 판정을 그대로 대시보드에 띄우는 권장 확장
 
 “상태는 벨트에서만 계산한다”는 설계를 유지하려면 LoRa 패킷에 최소 다음 4바이트를 추가한다.
 

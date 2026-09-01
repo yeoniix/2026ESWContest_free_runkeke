@@ -16,6 +16,7 @@ class ErrorCode(str, Enum):
     E102 = "E102"  # EDA 접촉 손실
     E103 = "E103"  # 피부온도 오류
     E104 = "E104"  # IMU 응답 없음
+    E105 = "E105"  # 환경 센서 데이터 없음/저품질
     E201 = "E201"  # BLE 10초 손실
     E301 = "E301"  # 팬 과전류/정지
     E302 = "E302"  # 배터리 10% 이하
@@ -60,6 +61,13 @@ ERROR_TABLE: dict[ErrorCode, ErrorInfo] = {
         "낙상 비활성·위험표시",
         "기능 제한",
         excludes_feature="ActivityLoad",
+    ),
+    ErrorCode.E105: ErrorInfo(
+        ErrorCode.E105,
+        "환경 온습도 데이터 없음 또는 품질 미달",
+        "EnvHeatProxy 가중치 제외",
+        "환경 센서 오류",
+        excludes_feature="EnvHeatProxy",
     ),
     ErrorCode.E201: ErrorInfo(
         ErrorCode.E201,

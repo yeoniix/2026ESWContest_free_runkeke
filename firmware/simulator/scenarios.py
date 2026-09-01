@@ -9,7 +9,7 @@ baseline.min_minutes*60에 맞춰 넘겨준다(기본 180, --fast면 훨씬 짧�
 
 임계값을 실제로 넘기기 위한 hold 구간 수치(HOLD_C1/HOLD_C2)는
 algorithm.risk_engine을 직접 돌려 RiskIndex가 원하는 구간(80대/90대)에
-오도록 맞춘 값이다 — RiskIndex v0.2 가중치가 바뀌면 이 값들도 다시 맞춰야
+오도록 맞춘 값이다 — RiskIndex 가중치가 바뀌면 이 값들도 다시 맞춰야
 한다(risk_config_version이 오르면 test_vector id도 함께 올린다, 표1).
 """
 

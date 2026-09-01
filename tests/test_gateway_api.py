@@ -20,7 +20,7 @@ TELEMETRY = {
     "cooling": {"requested": 1, "actual_pwm": 20, "current_ma": 284},
     "contributions": {},
     "active_errors": [],
-    "config_version": "0.2.0",
+    "config_version": "0.3.0",
     "sequence": 1,
 }
 
