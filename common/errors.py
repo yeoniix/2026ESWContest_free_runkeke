@@ -2,7 +2,7 @@
 
 출처: HS-SIID-002 p8 표8 "통합 오류코드", 저하 모드 원칙 1~4.
 각 코드가 RiskIndex 입력 중 어떤 항목의 가중치를 제외시키는지(quality gate)와
-로컬/관제 동작 문구를 한곳에 모아, node_sim과 server가 같은 정의를 참조하게 한다.
+로컬/관제 동작 문구를 한곳에 모아, firmware/simulator와 server가 같은 정의를 참조하게 한다.
 """
 
 from __future__ import annotations

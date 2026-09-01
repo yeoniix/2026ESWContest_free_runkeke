@@ -36,7 +36,7 @@ HeatSentry는 다음을 조기에 탐지해 시스템이 이를 보완한다.
 | --- | --- |
 | 센서 → RiskIndex | `algorithm/risk_engine.py` |
 | RiskIndex → 상태/냉각 판정 | `algorithm/fsm.py` |
-| 냉각 명령/ACK | `common/packets.py`, `node_sim/belt_node.py` |
+| 냉각 명령/ACK | `common/packets.py`, `firmware/simulator/belt_node.py` |
 | 30초 재평가·미회복 에스컬레이션 | `algorithm/fsm.py`의 `HoldTimer` 기반 임계값 로직 |
 | SOS/응급 | `HeatSentryFsm.emergency_latched`, `close_emergency()` |
 | 감사 로그 | `common/hash_chain.py`, `server/app/state.py`, `server/app/db.py` |
@@ -58,8 +58,8 @@ HeatSentry는 다음을 조기에 탐지해 시스템이 이를 보완한다.
 
 | 단계 | 목표 | 이 저장소의 대응 |
 | --- | --- | --- |
-| P0 기능증명 | 신호·팬 확인 | `node_sim/`이 실제 하드웨어 없이도 동일한 신호·판정 흐름을 소프트웨어로 재현 |
-| P1 대회 MVP | 8주 폐루프 시연 | `algorithm/` + `server/` + `node_sim/` + `dashboard/`로 폐루프 완성(본 커밋 기준) |
+| P0 기능증명 | 신호·팬 확인 | `firmware/simulator/`가 실제 하드웨어 없이도 동일한 신호·판정 흐름을 소프트웨어로 재현 |
+| P1 대회 MVP | 8주 폐루프 시연 | `algorithm/` + `server/` + `firmware/simulator/` + `dashboard/`로 폐루프 완성(본 커밋 기준) |
 | P2 현장 확장 | 다중 인원·장거리 | LoRa/KR920, 다중 착용자, 실물 BLE는 범위 밖(P1 이후) |
 
 ## 안전 경계 (반드시 지켜야 하는 것)

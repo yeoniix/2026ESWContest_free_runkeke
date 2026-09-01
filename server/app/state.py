@@ -2,7 +2,7 @@
 
 SU-G(게이트웨이) 책임: "BLE 집계·저장·WebSocket·선택 LoRa". 하지 않는 일:
 "센서 원시판정 대체" — 즉 이 파일은 RiskIndex/FSM을 다시 계산하지 않고,
-node_sim(손목/허리 노드)이 이미 판정해 보낸 telemetry/event를 그대로 집계·저장·
+firmware/simulator(손목/허리 노드)이 이미 판정해 보낸 telemetry/event를 그대로 집계·저장·
 전파하기만 한다.
 
 alerts/emergencies는 게이트웨이 자체의 "확인 여부" 장부다. HMI-001("지휘관
@@ -60,7 +60,7 @@ class GatewayStore:
             await self._broadcast(message)
 
     # ------------------------------------------------------------------
-    # Telemetry (IF-04의 소프트웨어 등가물: node_sim -> POST /ingest/telemetry)
+    # Telemetry (IF-04의 소프트웨어 등가물: simulator -> POST /ingest/telemetry)
     # ------------------------------------------------------------------
 
     async def ingest_telemetry(self, telemetry: TelemetryV2) -> bool:
@@ -132,7 +132,7 @@ class GatewayStore:
         return events
 
     # ------------------------------------------------------------------
-    # Command/ACK (node_sim -> POST /ingest/command_ack)
+    # Command/ACK (simulator -> POST /ingest/command_ack)
     # ------------------------------------------------------------------
 
     async def record_command_ack(self, record: dict) -> None:

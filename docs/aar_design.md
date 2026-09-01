@@ -36,7 +36,7 @@ canonical_json: UTF-8, sorted keys, no whitespace, fixed decimal precision(6자�
 
 ## 감사 추적: Command/ACK, User action
 
-- `node_sim/wrist_node.py`가 COOL_CMD를 보낼 때마다 `command_ack` 레코드를 만들어
+- `firmware/simulator/wrist_node.py`가 COOL_CMD를 보낼 때마다 `command_ack` 레코드를 만들어
   `POST /ingest/command_ack`로 게이트웨이에 남긴다 — 재전송 횟수(`retries`)까지 포함해
   COM-001("냉각 명령 성공률 99% 이상, 재전송 포함")을 증명할 수 있는 원자료가 된다.
 - 대시보드의 "확인"(`/api/v2/alerts/{id}/ack`)과 "응급 해제 기록"

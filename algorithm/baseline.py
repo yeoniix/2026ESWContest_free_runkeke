@@ -45,7 +45,7 @@ def _median_mad(values: list[float]) -> tuple[float, float]:
 class BaselineBuilder:
     """SensorTask가 3~5분간 축적한 표본으로 기준선을 만드는 상태 보관 객체.
 
-    node_sim의 WristNode가 BASELINE 상태일 때 매 초 add_sample()을 호출하고,
+    firmware/simulator의 WristNode가 BASELINE 상태일 때 매 초 add_sample()을 호출하고,
     is_ready()가 True가 되면 build()로 Baseline을 확정한다.
     """
 

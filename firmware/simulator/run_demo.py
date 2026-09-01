@@ -6,8 +6,8 @@ HS-SIID-002/HS-PDD-002 v2.0 기준선에 맞춰 손목(SU-W)+허리(SU-B) 폐루
 
 사용 예:
     # 게이트웨이가 켜져 있어야 한다: uvicorn server.app.main:app --port 8000
-    python -m node_sim.run_demo --scenario T03
-    python -m node_sim.run_demo --scenario T08 --fast --sleep 0
+    python -m firmware.simulator.run_demo --scenario T03
+    python -m firmware.simulator.run_demo --scenario T08 --fast --sleep 0
 """
 
 from __future__ import annotations
@@ -18,10 +18,10 @@ import sys
 import time
 
 from algorithm.risk_config import DEFAULT_CONFIG, RiskConfig
-from node_sim.belt_node import BeltNode
-from node_sim.gateway_client import GatewayClient, GatewayUnavailable
-from node_sim.scenarios import SCENARIOS
-from node_sim.wrist_node import WristNode
+from .belt_node import BeltNode
+from .gateway_client import GatewayClient, GatewayUnavailable
+from .scenarios import SCENARIOS
+from .wrist_node import WristNode
 
 
 def build_config(fast: bool) -> RiskConfig:
@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     wrist = WristNode(belt, device_id=args.device_id, config=config)
     client = GatewayClient(args.gateway_url)
 
-    print(f"HeatSentry node_sim 시작 — scenario={args.scenario} device={args.device_id} ticks={len(ticks)}")
+    print(f"HeatSentry simulator 시작 — scenario={args.scenario} device={args.device_id} ticks={len(ticks)}")
     print(f"게이트웨이: {args.gateway_url}")
     print("Ctrl+C로 중단할 수 있습니다.\n")
 

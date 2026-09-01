@@ -3,7 +3,7 @@
 > 기준일: 2026-08-30  
 > 소프트웨어 저장소: <https://github.com/yeoniix/heatsentry-tac>  
 > 확인한 저장소 기준 커밋: `5dc9e50` (`feat: add GPS map to dashboard`)  
-> 확인한 실물 펌웨어: `gloves_ESP32/gloves_ESP32.ino`, `gloves_ESP32/display_protocol.h`, `esplora_sen/esplora_sen.ino`
+> 실물 펌웨어: `firmware/glove_esp32/glove_esp32.ino`, `firmware/glove_esp32/display_protocol.h`, `firmware/belt_heltec/belt_heltec.ino`
 
 이 문서는 HeatSentry의 실물 손목 장치와 벨트 장치가 무엇을 측정하고, 어떻게 서로 통신하며,
 벨트가 만든 데이터를 게이트웨이와 관제 대시보드까지 전달하는지를 재현 가능한 수준으로 설명한다.
@@ -17,9 +17,9 @@ HeatSentry는 의료 진단 장비가 아니다. 표시되는 심박, 피부온�
 
 | 파일 | SHA-256 |
 | --- | --- |
-| `gloves_ESP32.ino` | `437461259AECBA061A72F6E6CFEF52A70EAAD10C1633B41B96C7D7FB89A8D724` |
-| `display_protocol.h` | `A1D9E8AB7BEECF084C23CE42059D87059CD24C51C56F21A4AC380A4DD90F9C4C` |
-| `esplora_sen.ino` | `69452A081011E0B85B8E0B8BC0BC1AA6AE87151DD0DEA38D6D0E974C9B4C9C0A` |
+| `firmware/glove_esp32/glove_esp32.ino` | `437461259AECBA061A72F6E6CFEF52A70EAAD10C1633B41B96C7D7FB89A8D724` |
+| `firmware/glove_esp32/display_protocol.h` | `A1D9E8AB7BEECF084C23CE42059D87059CD24C51C56F21A4AC380A4DD90F9C4C` |
+| `firmware/belt_heltec/belt_heltec.ino` | `69452A081011E0B85B8E0B8BC0BC1AA6AE87151DD0DEA38D6D0E974C9B4C9C0A` |
 
 ---
 
@@ -136,39 +136,32 @@ flowchart LR
 
 ---
 
-## 3. 권장 저장소 배치
+## 3. 저장소 배치
 
-실물 코드를 GitHub 저장소에 올릴 때는 역할이 바로 보이도록 다음 구조를 권장한다.
+실물 코드와 시스템 코드를 역할별로 다음과 같이 배치한다.
 
 ```text
 heatsentry-tac/
-├─ firmware/
-│  ├─ glove_esp32/
-│  │  ├─ glove_esp32.ino
-│  │  └─ display_protocol.h
-│  ├─ belt_heltec/
-│  │  └─ belt_heltec.ino
-│  └─ api_contract.md
-├─ common/
-│  └─ glove_packets.py
-├─ server/
-├─ dashboard/
-├─ docs/
-│  └─ hardware_integration_kr.md   # 이 문서
-└─ README.md
+├─ firmware/    ESP32 펌웨어, 통신 계약, 시뮬레이터
+├─ algorithm/   위험도 계산 및 상태 판단
+├─ common/      공통 데이터 구조와 패킷 처리
+├─ server/      FastAPI Gateway
+├─ dashboard/   React 관제 Dashboard
+├─ docs/        시스템·하드웨어 문서 및 CAD
+└─ tests/       자동화 테스트
 ```
 
-Arduino IDE는 폴더명과 메인 `.ino` 파일명이 같을 때 다루기 편하다. 업로드 시에는 현재 파일을
-다음과 같이 이름만 정리하면 된다.
+Arduino IDE는 폴더명과 메인 `.ino` 파일명이 같을 때 다루기 편하다. 업로드를 위해 파일명을
+다음과 같이 정리했다.
 
-| 현재 로컬 파일 | 저장소 권장 위치 |
+| 이전 로컬 파일 | 현재 저장소 위치 |
 | --- | --- |
 | `gloves_ESP32/gloves_ESP32.ino` | `firmware/glove_esp32/glove_esp32.ino` |
 | `gloves_ESP32/display_protocol.h` | `firmware/glove_esp32/display_protocol.h` |
 | `esplora_sen/esplora_sen.ino` | `firmware/belt_heltec/belt_heltec.ino` |
 
-`message.txt`는 화면 문구를 설계할 때 사용한 Python 초안이며 현재 ESP32 런타임에서 호출되지 않는다.
-최종 OLED 문구의 기준은 `gloves_ESP32.ino`의 `updateDisplay()`다.
+`firmware/glove_esp32/display_messages.py`는 화면 문구를 설계할 때 사용한 Python 초안이며 현재 ESP32 런타임에서 호출되지 않는다.
+최종 OLED 문구의 기준은 `firmware/glove_esp32/glove_esp32.ino`의 `updateDisplay()`다.
 
 ---
 

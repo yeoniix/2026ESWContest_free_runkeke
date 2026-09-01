@@ -4,7 +4,7 @@ HS-SIID-002 기준선의 로컬 API v2 + WebSocket을 구현한다. 실행:
 
     uvicorn server.app.main:app --reload --port 8000
 
-node_sim이 /ingest/*로 텔레메트리를 보내면 이 서버가 저장·해시체인·역할기반
+firmware/simulator가 /ingest/*로 텔레메트리를 보내면 이 서버가 저장·해시체인·역할기반
 확인 절차를 거쳐 /api/v2/*와 /ws/live로 대시보드에 내보낸다.
 
 구 버전(GPS 분대 관제, soldier_id/readiness_score 기반 /api/sensor)은

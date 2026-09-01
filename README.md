@@ -1,4 +1,4 @@
-# HeatSentry
+# HeatSentry TAC
 
 군 집단훈련 온열 위험 조기감지·자동냉각·안전 에스컬레이션 시스템
 
@@ -32,13 +32,13 @@ RiskIndex와 피부온도는 **의료 진단값이 아니다.** 열사병 의심
 
 | 서브시스템 | 책임 | 코드 |
 | --- | --- | --- |
-| SU-W 손목 노드 | 센서 품질·RiskIndex·상태·냉각 명령 | `algorithm/`, `node_sim/wrist_node.py` |
-| SU-B 허리 노드 | 팬·PCM·전력·안전 정지·ACK | `node_sim/belt_node.py` |
-| SU-E 환경 노드 | EnvHeatProxy(WBGT와는 별개 지표) | `node_sim/env_node.py` |
+| SU-W 손목 노드 | 센서 품질·RiskIndex·상태·냉각 명령 | `algorithm/`, `firmware/simulator/wrist_node.py` |
+| SU-B 허리 노드 | 팬·PCM·전력·안전 정지·ACK | `firmware/simulator/belt_node.py` |
+| SU-E 환경 노드 | EnvHeatProxy(WBGT와는 별개 지표) | `firmware/simulator/env_node.py` |
 | SU-G 게이트웨이 | BLE 집계·저장·WebSocket | `server/` |
 | SU-D 대시보드 | 경보·확인·로그·내보내기 | `dashboard/` |
 
-실제 nRF52840 BLE 하드웨어가 아직 없는 개발 단계이므로, `node_sim/`이 손목·허리 노드의 판정·안전
+실제 ESP32 하드웨어와 연동 전 개발 단계이므로, `firmware/simulator/`가 손목·허리 노드의 판정·안전
 로직을 소프트웨어로 그대로 재현하고 게이트웨이와 HTTP로 통신한다. 인터페이스 계약(바이트 레이아웃,
 GATT 서비스, 오류코드)은 `common/`에 있고, 나중에 실물 BLE로 옮길 때도 그대로 재사용된다. 자세한
 매핑은 [docs/architecture.md](docs/architecture.md) 참고.
@@ -49,11 +49,10 @@ GATT 서비스, 오류코드)은 `common/`에 있고, 나중에 실물 BLE로 �
 common/       바이너리 패킷(HS_STATUS/COOL_CMD/COOL_ACK), 해시체인, 오류코드, 게이트웨이 스키마
 algorithm/    RiskIndex v0.2 엔진, 기준선(Baseline), 안전 상태기계(FSM), 설정값
 server/       게이트웨이(FastAPI): REST v2 + WebSocket + 역할기반 확인 + SQLite 해시체인 로그
-node_sim/     손목/허리/환경 노드 시뮬레이터 + 결정적 시험 시나리오(T01~T10)
+firmware/     ESP32 펌웨어, 통신 계약, 손목/허리/환경 노드 시뮬레이터
 tests/        pytest — 패킷, 해시체인, RiskIndex, FSM, 게이트웨이 API, 시나리오 통합 시험
 dashboard/    React + TypeScript 관제 대시보드 (REST v2 + WebSocket)
 docs/         제품 개념·아키텍처·알고리즘·시연 시나리오·데이터 설계 문서
-firmware/     펌웨어 인터페이스 계약(ICD 요약, 실제 C/C++ 포팅 시 기준)
 ```
 
 ## 실행 방법
@@ -72,7 +71,7 @@ uvicorn server.app.main:app --reload --port 8000
 
 ```bash
 export HEATSENTRY_DEVICE_KEYS='{"HS-W-001":"change-this-device-secret"}'
-export HEATSENTRY_DEVICE_KEY='change-this-device-secret'  # node_sim 실행 터미널
+export HEATSENTRY_DEVICE_KEY='change-this-device-secret'  # simulator 실행 터미널
 export HEATSENTRY_CORS_ORIGINS='http://127.0.0.1:5173'
 ```
 
@@ -84,7 +83,7 @@ export HEATSENTRY_CORS_ORIGINS='http://127.0.0.1:5173'
 
 ```bash
 # 새 터미널, 같은 가상환경
-python -m node_sim.run_demo --scenario T03 --fast
+python -m firmware.simulator.run_demo --scenario T03 --fast
 ```
 
 `--scenario`는 `T01`~`T08`, `T10` 중 하나(표는 [docs/demo_scenario.md](docs/demo_scenario.md)).
@@ -105,7 +104,7 @@ observer/commander/tester/maintainer를 바꿔가며 권한 분리를 확인할 
 ### 4) 테스트
 
 ```bash
-# 파이썬 (common/algorithm/server/node_sim 전체)
+# 파이썬 (common/algorithm/server/firmware/simulator 전체)
 pip install -r server/requirements.txt   # pytest 포함
 pytest -q
 
@@ -136,8 +135,8 @@ npx eslint .
 
 | 단계 | 목표 | 상태 |
 | --- | --- | --- |
-| P0 기능증명 | 신호·팬 확인 | `node_sim/`으로 소프트웨어 상 완료 |
-| P1 대회 MVP | 8주 폐루프 시연 | 본 커밋 기준 `algorithm/`+`server/`+`node_sim/`+`dashboard/` 폐루프 완성, 실물 BLE/하드웨어 통합은 다음 단계 |
+| P0 기능증명 | 신호·팬 확인 | `firmware/simulator/`로 소프트웨어 상 완료 |
+| P1 대회 MVP | 8주 폐루프 시연 | 본 커밋 기준 `algorithm/`+`server/`+`firmware/simulator/`+`dashboard/` 폐루프 완성, 실물 BLE/하드웨어 통합은 다음 단계 |
 | P2 현장 확장 | 다중 인원·장거리 | 범위 밖(LoRa/KR920, BLE Mesh, 다중 착용자) |
 
 ## 참고자료

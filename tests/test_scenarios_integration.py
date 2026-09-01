@@ -1,11 +1,11 @@
-"""node_sim 시나리오를 게이트웨이 없이(=순수 WristNode/BeltNode) 끝까지 재생해
+"""firmware simulator 시나리오를 게이트웨이 없이(=순수 WristNode/BeltNode) 끝까지 재생해
 표12(T01~T10) 합격 기준의 핵심을 회귀 테스트로 고정한다."""
 
 import dataclasses
 
 from algorithm.risk_config import DEFAULT_CONFIG
-from node_sim.belt_node import BeltNode
-from node_sim.scenarios import (
+from firmware.simulator.belt_node import BeltNode
+from firmware.simulator.scenarios import (
     t01_baseline_stability,
     t03_risk_rise,
     t04_ack_loss,
@@ -14,7 +14,7 @@ from node_sim.scenarios import (
     t07_unrecovered,
     t08_fall_emergency,
 )
-from node_sim.wrist_node import WristNode
+from firmware.simulator.wrist_node import WristNode
 
 FAST_CONFIG = dataclasses.replace(
     DEFAULT_CONFIG,

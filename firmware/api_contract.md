@@ -12,13 +12,13 @@
 | protocol_version | 2 | `common/PROTOCOL_VERSION`, `common/packets.py` |
 | risk_config_version | 0.2.0 | `algorithm/risk_config.py`의 `RISK_CONFIG_VERSION` |
 | gateway_schema | 2.0 | `common/GATEWAY_SCHEMA_VERSION`, `common/schema.py` |
-| test_vector | TV-20260808-A | `node_sim/scenarios.py` (결정적 재생, 난수 없음) |
+| test_vector | TV-20260808-A | `firmware/simulator/scenarios.py` (결정적 재생, 난수 없음) |
 
 ## 인터페이스 목록
 
 | IF | 송신→수신 | 방식(문서) | 지금 구현 |
 | --- | --- | --- | --- |
-| IF-01 | 손목 센서→RiskTask | 로컬 큐, 10~1000ms | `node_sim/wrist_node.py`의 `WristNode.tick()` (1Hz) |
+| IF-01 | 손목 센서→RiskTask | 로컬 큐, 10~1000ms | `firmware/simulator/wrist_node.py`의 `WristNode.tick()` (1Hz) |
 | IF-02 | 손목→허리 | BLE GATT, 명령 즉시 | `WristNode._send_cool_cmd()` → `BeltNode.handle_cmd()` |
 | IF-03 | 허리→손목 | BLE Notify, 1s/이벤트 | `CoolAck` 반환값(동기 호출) |
 | IF-04 | 노드→게이트웨이 | BLE GATT, 1s/이벤트 | `POST /ingest/telemetry`·`/ingest/event`·`/ingest/command_ack` |
@@ -133,13 +133,13 @@ little-endian이므로 서버/게이트웨이 디코더도 같은 순서(`<HBBHB
 ## 연결·재전송 정책
 
 1. COOL_CMD는 `cmd_id`+`sequence`를 포함하고, 500ms 이내 ACK 없으면 최대 3회 재전송한다.
-   구현: `node_sim/wrist_node.py`의 `WristNode._send_cool_cmd()` (`RawTick.drop_ack_attempts`로
+   구현: `firmware/simulator/wrist_node.py`의 `WristNode._send_cool_cmd()` (`RawTick.drop_ack_attempts`로
    시험 가능).
 2. 동일 `cmd_id` 재수신 시 허리는 팬을 재시작하지 않고 현재 결과만 ACK한다(idempotent).
-   구현: `node_sim/belt_node.py`의 `BeltNode._processed_cmds` 캐시.
+   구현: `firmware/simulator/belt_node.py`의 `BeltNode._processed_cmds` 캐시.
 3. 상태 Notify는 손실 허용, Emergency는 Indicate 또는 애플리케이션 ACK을 쓴다.
 4. 연결 손실 10초에서 COMMS_LOST(E201), 60초에서 팬 안전 타이머(50%로 하향) — 구현:
-   `node_sim/belt_node.py`의 `BeltNode.tick()`, 상수는 `common/errors.py`의
+   `firmware/simulator/belt_node.py`의 `BeltNode.tick()`, 상수는 `common/errors.py`의
    `BLE_COMMS_LOST_S`/`FAN_SAFETY_TIMER_S`/`FAN_SAFETY_LEVEL`.
 
 ## 통합 오류코드
@@ -162,7 +162,7 @@ little-endian이므로 서버/게이트웨이 디코더도 같은 순서(`<HBBHB
 
 1. `valid_weight >= 0.60`이면 가중치를 재정규화해 운용한다(`algorithm/risk_engine.py`).
 2. IMU가 없으면 낙상 검출을 끄고 기능 제한을 표시한다(E104).
-3. 게이트웨이가 없어도 손목↔허리 자동 냉각·로컬 경고는 유지된다 — `node_sim/wrist_node.py`와
+3. 게이트웨이가 없어도 손목↔허리 자동 냉각·로컬 경고는 유지된다 — `firmware/simulator/wrist_node.py`와
    `belt_node.py`는 게이트웨이 연결 여부와 무관하게 판정·안전 로직을 수행한다(전송만 별도).
 4. 장거리 브리지(LoRa/KR920)가 없는 것은 전체 시스템 장애가 아니다 — IF-07은 애초에 P1 범위 밖.
 

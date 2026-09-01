@@ -3,6 +3,9 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# macOS Finder metadata
+.DS_Store
+
 # HeatSentry gateway local sqlite store (개발용 로컬 저장소, 커밋 대상 아님)
 *.db
 server/app/heatsentry_gateway.db

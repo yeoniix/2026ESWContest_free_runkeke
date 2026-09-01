@@ -22,7 +22,7 @@ from algorithm.fsm import HeatSentryFsm, ManualInputs
 from algorithm.risk_config import RiskConfig, DEFAULT_CONFIG
 from algorithm.risk_engine import RiskEngine, SensorSample
 from common.packets import CoolCmd, CoolReason, DeviceState
-from node_sim.belt_node import BeltNode
+from .belt_node import BeltNode
 
 _STAGE_INDEX = {"C0": 0, "C1": 1, "C2": 2, "C3": 3, "C4": 4}
 
@@ -32,7 +32,7 @@ _ACTIVITY_THRESHOLDS = (0.15, "REST"), (0.4, "WALK"), (0.75, "RUN")
 
 @dataclass
 class RawTick:
-    """시나리오 생성기가 매 초 만드는 원시 입력. node_sim/scenarios.py 참고."""
+    """시나리오 생성기가 매 초 만드는 원시 입력. firmware/simulator/scenarios.py 참고."""
 
     hr_bpm: float
     hrv_rmssd: float

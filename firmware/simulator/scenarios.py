@@ -15,7 +15,7 @@ algorithm.risk_engine을 직접 돌려 RiskIndex가 원하는 구간(80대/90대
 
 from __future__ import annotations
 
-from node_sim.wrist_node import RawTick
+from .wrist_node import RawTick
 
 REST_HR = 100.0
 REST_HRV = 45.0

@@ -42,7 +42,7 @@ HardTrigger = manual_sos OR (fall AND no_motion AND no_response)
 | SkinTemp_slope | 0.20 | 피부온도 상승률(°C/min) | 0.3°C/min에서 포화 |
 | EDA_delta | 0.10 | 개인 기준 EDA 변화 | 호출측이 이미 0~1 델타로 정규화해 전달 |
 | ActivityLoad | 0.15 | IMU 기반 활동 강도 | 0~1 그대로 사용(운동 자체가 발열원이라는 전제) |
-| EnvHeatProxy | 0.20 | 환경 상대열부하 | `node_sim/env_node.py`가 생성, WBGT_ref와는 별도 지표 |
+| EnvHeatProxy | 0.20 | 환경 상대열부하 | `firmware/simulator/env_node.py`가 생성, WBGT_ref와는 별도 지표 |
 
 포화 상수(4-시그마, 0.3°C/min 등)는 PDD 원문에 정확한 숫자가 없어 통합팀이 정할 자리다.
 `algorithm/risk_engine.py` 상단에 "설계 기본값" 주석으로 표시해 뒀고, 실측 데이터가 쌓이면
@@ -65,7 +65,7 @@ HardTrigger = manual_sos OR (fall AND no_motion AND no_response)
 - 착용 후 3~5분, PPG Quality≥70 & EDA Quality≥40인 구간만 사용.
 - 중앙값(median)과 MAD(Median Absolute Deviation)로 이상치를 배제한다(`algorithm/baseline.py`).
 - 5분 안에 기준선이 만들어지지 않으면 제한 모드로 전환하고 재착용을 요청한다
-  (`node_sim/wrist_node.py`의 `BASELINE_FAILED` 이벤트).
+  (`firmware/simulator/wrist_node.py`의 `BASELINE_FAILED` 이벤트).
 
 ## 상태기계와의 연결
 
@@ -75,7 +75,7 @@ RiskIndex는 그 자체로 상태를 정하지 않는다. `algorithm/fsm.py`의 
 
 ## 재현성 (test_vector)
 
-ICD 표1의 `test_vector: TV-20260808-A` 원칙("결과 재현 시 고정")에 따라, `node_sim/scenarios.py`의
+ICD 표1의 `test_vector: TV-20260808-A` 원칙("결과 재현 시 고정")에 따라, `firmware/simulator/scenarios.py`의
 모든 시나리오는 **난수를 쓰지 않는다.** 같은 입력은 항상 같은 RiskIndex 궤적을 만든다 —
 `tests/test_scenarios_integration.py`가 이 재현성 자체를 회귀 테스트로 고정해 둔다.
 
