@@ -34,10 +34,10 @@ class DeviceState(IntEnum):
     BOOT = 0
     BASELINE = 1
     NORMAL = 2
-    WARNING = 3
+    CAUTION = 3
     COOLING = 4
     EMERGENCY = 5
-    FAULT = 6
+    SENSOR CHECK = 6
 
 
 class StatusFlag(IntEnum):
