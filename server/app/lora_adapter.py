@@ -17,9 +17,6 @@ from algorithm.fsm import HeatSentryFsm, ManualInputs
 from common.glove_packets import GloveTelemetryPacket, decode_glove_telemetry
 from common.schema import TelemetryV2
 
-_STAGE_INDEX = {"C0": 0, "C1": 1, "C2": 2, "C3": 3, "C4": 4}
-
-
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -91,7 +88,7 @@ class LoRaTelemetryAdapter:
             risk_index = 255 if reading.risk is None else reading.risk.risk_index
             valid_weight = 0.0 if reading.risk is None else reading.risk.valid_weight
             contributions = {} if reading.risk is None else reading.risk.contributions
-            requested = 4
+            requested = self.config.fsm.stage_index("C4")
         elif not packet.sensor_ready:
             state = "FAULT"
             risk_index = 255
@@ -114,7 +111,7 @@ class LoRaTelemetryAdapter:
             risk_index = reading.risk.risk_index
             valid_weight = reading.risk.valid_weight
             contributions = reading.risk.contributions
-            requested = _STAGE_INDEX[fsm_out.cooling_stage]
+            requested = self.config.fsm.stage_index(fsm_out.cooling_stage)
             active_errors.extend(error.value for error in reading.risk.active_errors)
             if reading.risk.sensor_limited:
                 active_errors.append("SENSOR_LIMITED")

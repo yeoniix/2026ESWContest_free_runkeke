@@ -63,9 +63,19 @@ class BaselineConfig:
 class CoolingStageConfig:
     """SIID p7 표7 냉각 상태 기준 (=PDD p6 표7과 동일 수치).
 
-    enter_hold_s: 진입 임계를 이 시간(초) 이상 유지해야 진입.
-    exit_threshold / exit_hold_s: 회복 시 하향 조건(히스테리시스).
-    fan_percent: 팬 PWM 목표값.
+    FSM은 이 표만 읽고 승급·강등·팬 출력을 모두 결정한다. 임계값을 바꿀 일이
+    생기면 fsm.py가 아니라 여기만 고친다.
+
+    enter_threshold / enter_hold_s: RiskIndex가 임계 이상으로 이 시간(초)만큼
+        유지되면 이 단계로 승급한다.
+    exit_threshold / exit_hold_s: 회복 시 한 단계 아래로 내려가는 조건
+        (히스테리시스). None이면 자동 강등하지 않는다 — C0는 최하단이라,
+        C4는 close_emergency()로만 벗어나기 때문이다.
+    exit_requires_commander: 강등에 지휘관의 "회복 추세 확인"이 추가로 필요한지.
+    fan_percent: 팬 PWM 목표값. 실제 블로워의 저출력 구간은 체감 냉각 효과가
+        작으므로 현장 제어는 OFF -> 50% -> 100% 두 출력 단계로 단순화했다.
+        C2/C3가 같은 100%인 것은 그래서이며, 두 단계의 구분은 출력이 아니라
+        위험 지속 시간과 LCD/관제 경보 수준에 있다.
     """
 
     name: str
@@ -74,6 +84,7 @@ class CoolingStageConfig:
     fan_percent: int
     exit_threshold: int | None
     exit_hold_s: float | None
+    exit_requires_commander: bool = False
 
 
 @dataclass(frozen=True)
@@ -92,6 +103,8 @@ class FsmConfig:
     warning_exit_hold_s: float = 30.0
 
     # CTL-001: "RiskIndex 80 이상 10초 지속 시 냉각 C1" — 문서 확정값.
+    # C3(90이 60초 지속)가 표7의 "C2 60초 미회복 시 상향" 규칙이고,
+    # C4(95)가 HardTrigger와는 별개인 RiskIndex 단독 긴급 진입 경로다.
     stages: tuple[CoolingStageConfig, ...] = field(
         default_factory=lambda: (
             CoolingStageConfig("C0", enter_threshold=0, enter_hold_s=0, fan_percent=0,
@@ -101,15 +114,14 @@ class FsmConfig:
             CoolingStageConfig("C2", enter_threshold=90, enter_hold_s=10, fan_percent=100,
                                 exit_threshold=80, exit_hold_s=30),
             CoolingStageConfig("C3", enter_threshold=90, enter_hold_s=60, fan_percent=100,
-                                exit_threshold=85, exit_hold_s=60),
+                                exit_threshold=85, exit_hold_s=60,
+                                exit_requires_commander=True),
             CoolingStageConfig("C4", enter_threshold=95, enter_hold_s=0, fan_percent=100,
                                 exit_threshold=None, exit_hold_s=None),
         )
     )
 
-    emergency_threshold: int = 95  # C4 진입 임계 (HardTrigger와는 별개 경로)
     emergency_max_latency_s: float = 5.0  # COM-002/SYS-006: 낙상+무동작/SOS -> 5초 이내
-    c2_unrecovered_s: float = 60.0  # C2 60초 미회복 -> C3
 
     # Fail-safe (SIID p4 "연결·재전송 정책" #4, PDD p6 "Fail-safe")
     ble_comms_lost_s: float = 10.0
@@ -119,6 +131,17 @@ class FsmConfig:
     # 명령 재전송 (SIID p4 #1, PDD 성공지표 #2)
     ack_timeout_ms: float = 500.0
     ack_max_retries: int = 3
+
+    @property
+    def stage_names(self) -> tuple[str, ...]:
+        return tuple(stage.name for stage in self.stages)
+
+    def stage_index(self, name: str) -> int:
+        """스테이지 이름을 순번으로. 텔레메트리 cooling.requested와 같은 값이다."""
+        return self.stage_names.index(name)
+
+    def stage(self, name: str) -> CoolingStageConfig:
+        return self.stages[self.stage_index(name)]
 
 
 @dataclass(frozen=True)

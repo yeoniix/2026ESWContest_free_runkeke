@@ -24,8 +24,6 @@ from algorithm.risk_engine import RiskEngine, SensorSample
 from common.packets import CoolCmd, CoolReason, DeviceState
 from .belt_node import BeltNode
 
-_STAGE_INDEX = {"C0": 0, "C1": 1, "C2": 2, "C3": 3, "C4": 4}
-
 # 문서에 정확한 규칙이 없어 통합팀이 정할 자리(설계 기본값): 활동 라벨 경계.
 _ACTIVITY_THRESHOLDS = (0.15, "REST"), (0.4, "WALK"), (0.75, "RUN")
 
@@ -286,7 +284,7 @@ class WristNode:
                 "activity": _activity_label(raw),
             },
             "cooling": {
-                "requested": _STAGE_INDEX[cooling_stage],
+                "requested": self.config.fsm.stage_index(cooling_stage),
                 "actual_pwm": self.belt.fan_pwm_percent,
                 "current_ma": self.belt.current_ma,
             },

@@ -25,12 +25,6 @@ from algorithm.risk_config import FsmConfig, DEFAULT_CONFIG
 from algorithm.risk_engine import RiskResult
 from common.packets import CoolReason, DeviceState
 
-_STAGE_ORDER = ["C0", "C1", "C2", "C3", "C4"]
-# 실제 블로워의 저출력 구간은 체감 냉각 효과가 작으므로, 현장 제어는
-# OFF -> 50% -> 100% 두 출력 단계로 단순화한다. C2/C3의 구분은 출력이 아니라
-# 위험 지속 시간과 LCD/관제 경보 수준을 구분하기 위해 유지한다.
-_STAGE_FAN = {"C0": 0, "C1": 50, "C2": 100, "C3": 100, "C4": 100}
-
 
 class HoldTimer:
     """조건이 계속 참인 시간을 초 단위로 누적하고, 거짓이 되면 0으로 리셋한다."""
@@ -73,13 +67,17 @@ class HeatSentryFsm:
         self.emergency_latched = False
         self.emergency_reason: str | None = None
 
-        self._t_ge_60 = HoldTimer()
-        self._t_lt_55 = HoldTimer()
-        self._t_ge_80 = HoldTimer()
-        self._t_lt_70 = HoldTimer()
-        self._t_ge_90 = HoldTimer()
-        self._t_lt_80 = HoldTimer()
-        self._t_lt_85 = HoldTimer()
+        # 임계값별 유지시간 타이머. 표에 같은 임계값이 여러 번 나오면(C2/C3의 90)
+        # 타이머를 공유한다 — 90이 60초 유지됐다면 10초 지점은 이미 지났으므로
+        # C2 승급과 C3 승급이 하나의 누적값으로 동시에 성립한다.
+        self._t_enter: dict[int, HoldTimer] = {}
+        self._t_exit: dict[int, HoldTimer] = {}
+        for stage in config.stages:
+            self._t_enter.setdefault(stage.enter_threshold, HoldTimer())
+            if stage.exit_threshold is not None:
+                self._t_exit.setdefault(stage.exit_threshold, HoldTimer())
+        self._t_warning_enter = HoldTimer()
+        self._t_warning_exit = HoldTimer()
 
         self.commander_recovery_confirm = False  # C3->C2 하향 시 필요 (표7 "지휘관 확인")
 
@@ -102,31 +100,29 @@ class HeatSentryFsm:
         risk_index = risk.risk_index if risk.risk_index != 255 else 0
 
         # --- WARNING 진입/해제 (히스테리시스) ---
-        self._t_ge_60.tick(risk_index >= cfg.warning_enter, dt_s)
-        self._t_lt_55.tick(risk_index < cfg.warning_exit, dt_s)
-        if not self.warning_active and self._t_ge_60.value >= cfg.warning_enter_hold_s:
+        self._t_warning_enter.tick(risk_index >= cfg.warning_enter, dt_s)
+        self._t_warning_exit.tick(risk_index < cfg.warning_exit, dt_s)
+        if not self.warning_active and self._t_warning_enter.value >= cfg.warning_enter_hold_s:
             self.warning_active = True
             events.append("WARNING_ENTER")
-        elif self.warning_active and self._t_lt_55.value >= cfg.warning_exit_hold_s:
+        elif self.warning_active and self._t_warning_exit.value >= cfg.warning_exit_hold_s:
             self.warning_active = False
             events.append("WARNING_EXIT")
 
         # --- 냉각 단계 승급 후보 계산 (표7) ---
-        self._t_ge_80.tick(risk_index >= 80, dt_s)
-        self._t_lt_70.tick(risk_index < 70, dt_s)
-        self._t_ge_90.tick(risk_index >= 90, dt_s)
-        self._t_lt_80.tick(risk_index < 80, dt_s)
-        self._t_lt_85.tick(risk_index < 85, dt_s)
+        for threshold, timer in self._t_enter.items():
+            timer.tick(risk_index >= threshold, dt_s)
+        for threshold, timer in self._t_exit.items():
+            timer.tick(risk_index < threshold, dt_s)
 
-        candidate = "C0"
-        if self._t_ge_80.value >= 10:
-            candidate = "C1"
-        if self._t_ge_90.value >= 10:
-            candidate = "C2"
-        if self._t_ge_90.value >= cfg.c2_unrecovered_s:
-            candidate = "C3"
-        if risk_index >= cfg.emergency_threshold:
-            candidate = "C4"
+        # 표를 낮은 단계부터 훑어 조건을 만족하는 가장 높은 단계를 후보로 삼는다.
+        # enter_hold_s가 0인 단계(C4)는 타이머만 보면 조건이 항상 참이 되므로
+        # 현재 RiskIndex가 임계 이상인지를 함께 확인한다.
+        candidate = cfg.stages[0].name
+        for stage in cfg.stages[1:]:
+            held = self._t_enter[stage.enter_threshold].value
+            if risk_index >= stage.enter_threshold and held >= stage.enter_hold_s:
+                candidate = stage.name
 
         hard_trigger = risk.hard_trigger or manual.manual_sos
         if hard_trigger and not self.emergency_latched:
@@ -137,31 +133,28 @@ class HeatSentryFsm:
         if self.emergency_latched:
             self.stage = "C4"
         else:
-            current_idx = _STAGE_ORDER.index(self.stage)
-            candidate_idx = _STAGE_ORDER.index(candidate)
+            current_idx = cfg.stage_index(self.stage)
+            candidate_idx = cfg.stage_index(candidate)
             if candidate_idx > current_idx:
                 self.stage = candidate
                 events.append(f"COOLING_{self.stage}")
-            elif candidate_idx <= current_idx:
-                # 강등은 현재 단계 하나만, 각자의 해제 조건으로만 판단한다.
-                if self.stage == "C1" and self._t_lt_70.value >= 30:
-                    self.stage = "C0"
-                    events.append("COOLING_C0")
-                elif self.stage == "C2" and self._t_lt_80.value >= 30:
-                    self.stage = "C1"
-                    events.append("COOLING_C1")
-                elif (
-                    self.stage == "C3"
-                    and self._t_lt_85.value >= 60
-                    and self.commander_recovery_confirm
-                ):
-                    self.stage = "C2"
-                    self.commander_recovery_confirm = False
-                    events.append("COOLING_C2")
+            else:
+                # 강등은 현재 단계 하나만, 그 단계의 해제 조건으로만 판단한다.
+                # exit_threshold가 None인 단계(C0/C4)는 자동으로 내려가지 않는다 —
                 # C4는 close_emergency()로만 벗어난다.
+                current = cfg.stages[current_idx]
+                if (
+                    current.exit_threshold is not None
+                    and self._t_exit[current.exit_threshold].value >= current.exit_hold_s
+                    and (self.commander_recovery_confirm or not current.exit_requires_commander)
+                ):
+                    if current.exit_requires_commander:
+                        self.commander_recovery_confirm = False
+                    self.stage = cfg.stages[current_idx - 1].name
+                    events.append(f"COOLING_{self.stage}")
 
         # --- 명령 중재 (표7 우선순위) ---
-        risk_fan = _STAGE_FAN[self.stage]
+        risk_fan = cfg.stage(self.stage).fan_percent
         commanded_fan = risk_fan
         reason = CoolReason.RISK_FSM
 
