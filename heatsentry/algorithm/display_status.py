@@ -46,7 +46,7 @@ def make_display_status(
     if state == "EMERGENCY" or cooling_stage == "C4":
         return DisplayStatus("EMERGENCY", "SOS  FAN 100%")
     if not finger_detected or (hr_bpm is not None and hr_bpm <= 0):
-        return DisplayStatus("SENSOR CHECK", "WEAR GLOVE")
+        return DisplayStatus("SENSOR_CHECK", "WEAR GLOVE")
     if state == "BOOT":
         return DisplayStatus("HEATSENTRY", "STARTING")
     if state == "BASELINE":
