@@ -2,55 +2,51 @@
 #include "Arduino.h"
 
 // =====================================================
-// LoRa 설정
-// Belt Heltec와 반드시 동일해야 함
+// LoRa settings - Belt와 반드시 동일
 // =====================================================
-#define RF_FREQUENCY 922300000
-
-#define LORA_BANDWIDTH 0
+#define RF_FREQUENCY          922300000
+#define LORA_BANDWIDTH        0
 #define LORA_SPREADING_FACTOR 7
-#define LORA_CODINGRATE 1
-#define LORA_PREAMBLE_LENGTH 8
-#define LORA_SYMBOL_TIMEOUT 0
-
+#define LORA_CODINGRATE       1
+#define LORA_PREAMBLE_LENGTH  8
+#define LORA_SYMBOL_TIMEOUT   0
 #define LORA_FIX_LENGTH_PAYLOAD_ON false
-#define LORA_IQ_INVERSION_ON false
+#define LORA_IQ_INVERSION_ON       false
 
 // =====================================================
-// Belt -> Base
-// 35 byte telemetry packet
+// 35 byte packet
+//
+// version 2:
+// airTemp_x10:
+//   high = DeviceState
+//   low  = Cause
+//
+// humidity_x10:
+//   high = CoolingStage
+//   low  = RiskIndex
 // =====================================================
 struct __attribute__((packed)) TelemetryPacket {
-
   uint16_t magic;
-  uint8_t version;
-  uint8_t nodeId;
-
+  uint8_t  version;
+  uint8_t  nodeId;
   uint16_t seq;
 
-  uint8_t bpm;
-  int16_t skinTemp_x100;
-
+  uint8_t  bpm;
+  int16_t  skinTemp_x100;
   uint16_t gsr;
-  int16_t gsrDiff;
-
+  int16_t  gsrDiff;
   uint32_t ir;
 
-  // 최신 HeatSentry 코드에서는
-  // 이 16bit 필드를 state/cause로 재사용
-  int16_t airTemp_x10;
+  int16_t  airTemp_x10;
+  uint16_t humidity_x10;
 
-  uint16_t humidity_x10;   // ★ Belt RiskIndex (0~100, 255=INVALID)
-
-  int32_t latitude_e7;
-  int32_t longitude_e7;
-
-  uint8_t satellites;
-
-  int16_t altitude_dm;
+  int32_t  latitude_e7;
+  int32_t  longitude_e7;
+  uint8_t  satellites;
+  int16_t  altitude_dm;
   uint16_t speed_x10;
 
-  uint8_t flags;
+  uint8_t  flags;
 };
 
 static_assert(
@@ -59,103 +55,56 @@ static_assert(
 );
 
 TelemetryPacket rxData;
-
 static RadioEvents_t RadioEvents;
 
-// =====================================================
-// State 이름 변환
-// =====================================================
 const char* getStateName(uint8_t state) {
-
   switch (state) {
-
-    case 0:
-      return "BOOT";
-
-    case 1:
-      return "BASELINE";
-
-    case 2:
-      return "NORMAL";
-
-    case 3:
-      return "CAUTION";
-
-    case 4:
-      return "COOLING 50%";
-
-    case 5:
-      return "DANGER";
-
-    case 6:
-      return "EMERGENCY";
-
-    case 7:
-      return "SENSOR CHECK";
-
-    default:
-      return "UNKNOWN";
+    case 0: return "BOOT";
+    case 1: return "BASELINE";
+    case 2: return "NORMAL";
+    case 3: return "CAUTION";
+    case 4: return "COOLING";
+    case 5: return "EMERGENCY";
+    case 6: return "SENSOR CHECK";
+    default: return "UNKNOWN";
   }
 }
 
-// =====================================================
-// Cause 이름 변환
-// =====================================================
 const char* getCauseName(uint8_t cause) {
-
   switch (cause) {
-
-    case 0:
-      return "NONE";
-
-    case 1:
-      return "HR HIGH";
-
-    case 2:
-      return "HR CHANGE";
-
-    case 3:
-      return "TEMP UP";
-
-    case 4:
-      return "GSR UP";
-
-    case 5:
-      return "HOT ENV";
-
-    case 6:
-      return "ACTIVE";
-
-    case 7:
-      return "SENSOR";
-
-    default:
-      return "UNKNOWN";
+    case 0: return "NONE";
+    case 1: return "HR HIGH";
+    case 2: return "HR CHANGE";
+    case 3: return "TEMP UP";
+    case 4: return "GSR UP";
+    case 5: return "HOT ENV";
+    case 6: return "ACTIVE";
+    case 7: return "SENSOR";
+    default: return "UNKNOWN";
   }
 }
 
-// =====================================================
-// Python Dashboard Bridge용 RAW 출력
-//
-// 형식:
-// HSRAW,<35byte HEX>,<RSSI>,<SNR>
-//
-// 예:
-// HSRAW,5AA501..., -97,-2
-// 실제 출력에는 불필요한 공백 없음
-// =====================================================
+const char* getStageName(uint8_t stage) {
+  switch (stage) {
+    case 0: return "C0";
+    case 1: return "C1";
+    case 2: return "C2";
+    case 3: return "C3";
+    case 4: return "C4";
+    default: return "C?";
+  }
+}
+
+// Python bridge reads only this line.
 void printRawPacket(
   const uint8_t *payload,
   uint16_t size,
   int16_t rssi,
   int8_t snr
 ) {
-
   Serial.print("HSRAW,");
 
   for (uint16_t i = 0; i < size; i++) {
-
-    // 0x01 같은 값도 반드시 01로 출력
     if (payload[i] < 0x10) {
       Serial.print("0");
     }
@@ -167,87 +116,44 @@ void printRawPacket(
   }
 
   Serial.print(",");
-
-  Serial.print(
-    rssi
-  );
-
+  Serial.print(rssi);
   Serial.print(",");
-
-  Serial.println(
-    snr
-  );
+  Serial.println(snr);
 }
 
-// =====================================================
-// LoRa 수신 완료
-// =====================================================
 void OnRxDone(
   uint8_t *payload,
   uint16_t size,
   int16_t rssi,
   int8_t snr
 ) {
-
-  // ---------------------------------------------------
-  // 크기 검사
-  // ---------------------------------------------------
-  if (
-    size != sizeof(TelemetryPacket)
-  ) {
-
-    Serial.println();
-
-    Serial.print(
-      "[ERROR] PACKET SIZE : "
-    );
-
-    Serial.print(
-      size
-    );
-
-    Serial.print(
-      " / EXPECTED : "
-    );
-
-    Serial.println(
-      sizeof(TelemetryPacket)
+  if (size != sizeof(TelemetryPacket)) {
+    Serial.printf(
+      "[ERROR] PACKET SIZE %u / expected %u\n",
+      size,
+      (unsigned)sizeof(TelemetryPacket)
     );
 
     Radio.Rx(0);
-
     return;
   }
 
-  // ---------------------------------------------------
-  // 구조체 복사
-  // ---------------------------------------------------
   memcpy(
     &rxData,
     payload,
     sizeof(rxData)
   );
 
-  // ---------------------------------------------------
-  // Magic 검사
-  // ---------------------------------------------------
-  if (
-    rxData.magic != 0xA55A
-  ) {
-
+  if (rxData.magic != 0xA55A) {
     Serial.println(
       "[ERROR] INVALID MAGIC"
     );
 
     Radio.Rx(0);
-
     return;
   }
 
-  // ===================================================
-  // ★ 중요
-  // Python bridge에서 사용하는 한 줄
-  // ===================================================
+  // Dashboard bridge raw packet
   printRawPacket(
     payload,
     size,
@@ -255,9 +161,47 @@ void OnRxDone(
     snr
   );
 
-  // ===================================================
-  // 사람이 확인하는 기존 Serial 로그
-  // ===================================================
+  uint16_t stateCauseWord =
+    (uint16_t)rxData.airTemp_x10;
+
+  uint8_t stateCode =
+    (uint8_t)(
+      (stateCauseWord >> 8) & 0xFF
+    );
+
+  uint8_t causeCode =
+    (uint8_t)(
+      stateCauseWord & 0xFF
+    );
+
+  uint16_t stageRiskWord =
+    rxData.humidity_x10;
+
+  uint8_t coolingStage =
+    (uint8_t)(
+      (stageRiskWord >> 8) & 0xFF
+    );
+
+  uint8_t riskIndex =
+    (uint8_t)(
+      stageRiskWord & 0xFF
+    );
+
+  bool gloveValid =
+    rxData.flags & (1 << 0);
+
+  bool gpsValid =
+    rxData.flags & (1 << 2);
+
+  bool finger =
+    rxData.flags & (1 << 3);
+
+  bool emergency =
+    rxData.flags & (1 << 4);
+
+  bool fanOn =
+    rxData.flags & (1 << 5);
+
   Serial.println();
   Serial.println(
     "================================="
@@ -271,372 +215,160 @@ void OnRxDone(
     "================================="
   );
 
-  Serial.print(
-    "Bytes : "
-  );
-
-  Serial.print(
+  Serial.printf(
+    "Bytes         : %u\n",
     size
   );
 
-  Serial.print(
-    "  |  RSSI : "
-  );
-
-  Serial.print(
-    rssi
-  );
-
-  Serial.print(
-    " dBm  |  SNR : "
-  );
-
-  Serial.print(
+  Serial.printf(
+    "RSSI / SNR    : %d dBm / %d dB\n",
+    rssi,
     snr
   );
 
-  Serial.println(
-    " dB"
-  );
-
-  // ===================================================
-  // SYSTEM
-  // ===================================================
   Serial.println();
-  Serial.println(
-    "[ SYSTEM ]"
-  );
+  Serial.println("[ SYSTEM ]");
 
-  Serial.print(
-    "Version       : "
-  );
-
-  Serial.println(
+  Serial.printf(
+    "Version       : %u\n",
     rxData.version
   );
 
-  Serial.print(
-    "Node ID       : "
-  );
-
-  Serial.println(
+  Serial.printf(
+    "Node ID       : %u\n",
     rxData.nodeId
   );
 
-  Serial.print(
-    "Sequence      : "
-  );
-
-  Serial.println(
+  Serial.printf(
+    "Sequence      : %u\n",
     rxData.seq
   );
 
-  Serial.print(
-    "Flags         : 0x"
+  Serial.printf(
+    "Flags         : 0x%02X\n",
+    rxData.flags
   );
-
-  if (rxData.flags < 0x10) {
-    Serial.print("0");
-  }
-
-  Serial.println(
-    rxData.flags,
-    HEX
-  );
-
-  // ===================================================
-  // RISK STATE
-  //
-  // airTemp_x10 16bit 재활용
-  //
-  // 상위 8bit = state
-  // 하위 8bit = cause
-  // ===================================================
-  uint16_t packedState =
-    (uint16_t)rxData.airTemp_x10;
-
-  uint8_t stateCode =
-    (uint8_t)(
-      (packedState >> 8) &
-      0xFF
-    );
-
-  uint8_t causeCode =
-    (uint8_t)(
-      packedState &
-      0xFF
-    );
 
   Serial.println();
-  Serial.println(
-    "[ RISK STATE ]"
-  );
+  Serial.println("[ FSM ]");
 
-  if (stateCode == 6) {
-
-    Serial.println(
-      "!!! EMERGENCY !!!"
-    );
-  }
-
-  else if (stateCode == 5) {
-
-    Serial.println(
-      "!! DANGER !!"
-    );
-  }
-
-  else if (stateCode == 4) {
-
-    Serial.println(
-      "! COOLING 50% !"
-    );
-  }
-
-  Serial.print(
-    "State         : "
-  );
-
-  Serial.println(
+  Serial.printf(
+    "State         : %s\n",
     getStateName(stateCode)
   );
 
-  Serial.print(
-    "Cause         : "
+  Serial.printf(
+    "CoolingStage  : %s\n",
+    getStageName(coolingStage)
   );
 
-  Serial.println(
+  Serial.printf(
+    "Cause         : %s\n",
     getCauseName(causeCode)
   );
 
-  // ===================================================
-  // BELT RISK INDEX
-  // humidity_x10 필드를 재활용해 Belt의 실제 RiskIndex 수신
-  // ===================================================
-  uint16_t beltRiskIndex = rxData.humidity_x10;
-
-  Serial.print(
-    "RiskIndex     : "
-  );
-
-  if (beltRiskIndex <= 100) {
-    Serial.println(beltRiskIndex);
+  if (riskIndex <= 100) {
+    Serial.printf(
+      "RiskIndex     : %u\n",
+      riskIndex
+    );
   }
   else {
-    Serial.println("INVALID");
+    Serial.println(
+      "RiskIndex     : INVALID"
+    );
   }
 
-  // ===================================================
-  // BELT
-  // ===================================================
-  bool emergency =
-    (
-      rxData.flags &
-      (1 << 4)
-    );
-
-  bool fansOn =
-    (
-      rxData.flags &
-      (1 << 5)
-    );
-
   Serial.println();
-  Serial.println(
-    "[ BELT STATUS ]"
-  );
+  Serial.println("[ BELT ]");
 
-  Serial.print(
-    "Emergency     : "
-  );
-
-  Serial.println(
+  Serial.printf(
+    "Emergency     : %s\n",
     emergency
       ? "ACTIVE"
       : "NORMAL"
   );
 
-  Serial.print(
-    "Fan           : "
-  );
-
-  Serial.println(
-    fansOn
+  Serial.printf(
+    "Fan           : %s\n",
+    fanOn
       ? "ON"
       : "OFF"
   );
 
-  // ===================================================
-  // GLOVE
-  // ===================================================
   Serial.println();
-  Serial.println(
-    "[ GLOVE / ESP32U ]"
-  );
-
-  bool gloveValid =
-    (
-      rxData.flags &
-      (1 << 0)
-    );
-
-  bool finger =
-    (
-      rxData.flags &
-      (1 << 3)
-    );
+  Serial.println("[ GLOVE / ESP32U ]");
 
   if (gloveValid) {
-
-    Serial.print(
-      "BPM           : "
-    );
-
-    Serial.println(
+    Serial.printf(
+      "BPM           : %u\n",
       rxData.bpm
     );
 
-    Serial.print(
-      "Skin Temp     : "
+    Serial.printf(
+      "Skin Temp     : %.2f C\n",
+      rxData.skinTemp_x100 / 100.0f
     );
 
-    Serial.print(
-      rxData.skinTemp_x100 /
-      100.0f,
-      2
-    );
-
-    Serial.println(
-      " C"
-    );
-
-    Serial.print(
-      "GSR           : "
-    );
-
-    Serial.println(
+    Serial.printf(
+      "GSR           : %u\n",
       rxData.gsr
     );
 
-    Serial.print(
-      "GSR Diff      : "
-    );
-
-    Serial.println(
+    Serial.printf(
+      "GSR Diff      : %d\n",
       rxData.gsrDiff
     );
 
-    Serial.print(
-      "IR            : "
-    );
-
-    Serial.println(
+    Serial.printf(
+      "IR            : %lu\n",
       rxData.ir
     );
 
-    Serial.print(
-      "Finger        : "
-    );
-
-    Serial.println(
+    Serial.printf(
+      "Finger        : %s\n",
       finger
         ? "YES"
         : "NO"
     );
   }
-
   else {
-
-    Serial.println(
-      "NO GLOVE DATA"
-    );
+    Serial.println("NO GLOVE DATA");
   }
 
-  // ===================================================
-  // GPS
-  // ===================================================
   Serial.println();
-  Serial.println(
-    "[ GPS ]"
-  );
-
-  bool gpsValid =
-    (
-      rxData.flags &
-      (1 << 2)
-    );
+  Serial.println("[ GPS ]");
 
   if (gpsValid) {
-
-    Serial.print(
-      "Latitude      : "
+    Serial.printf(
+      "Latitude      : %.6f\n",
+      rxData.latitude_e7 / 10000000.0
     );
 
-    Serial.println(
-      rxData.latitude_e7 /
-      10000000.0,
-      6
+    Serial.printf(
+      "Longitude     : %.6f\n",
+      rxData.longitude_e7 / 10000000.0
     );
 
-    Serial.print(
-      "Longitude     : "
-    );
-
-    Serial.println(
-      rxData.longitude_e7 /
-      10000000.0,
-      6
-    );
-
-    Serial.print(
-      "Satellites    : "
-    );
-
-    Serial.println(
+    Serial.printf(
+      "Satellites    : %u\n",
       rxData.satellites
     );
 
-    Serial.print(
-      "Altitude      : "
+    Serial.printf(
+      "Altitude      : %.1f m\n",
+      rxData.altitude_dm / 10.0f
     );
 
-    Serial.print(
-      rxData.altitude_dm /
-      10.0f,
-      1
-    );
-
-    Serial.println(
-      " m"
-    );
-
-    Serial.print(
-      "Speed         : "
-    );
-
-    Serial.print(
-      rxData.speed_x10 /
-      10.0f,
-      1
-    );
-
-    Serial.println(
-      " km/h"
+    Serial.printf(
+      "Speed         : %.1f km/h\n",
+      rxData.speed_x10 / 10.0f
     );
   }
-
   else {
-
-    Serial.print(
-      "NO GPS FIX  (Satellites: "
-    );
-
-    Serial.print(
+    Serial.printf(
+      "NO GPS FIX (Satellites: %u)\n",
       rxData.satellites
-    );
-
-    Serial.println(
-      ")"
     );
   }
 
@@ -644,46 +376,21 @@ void OnRxDone(
     "================================="
   );
 
-  // 계속 수신
   Radio.Rx(0);
 }
 
-// =====================================================
-// LoRa timeout
-// =====================================================
 void OnRxTimeout() {
-
-  Serial.println(
-    "[LoRa] RX TIMEOUT"
-  );
-
   Radio.Rx(0);
 }
 
-// =====================================================
-// LoRa error
-// =====================================================
 void OnRxError() {
-
-  Serial.println(
-    "[LoRa] RX ERROR"
-  );
-
+  Serial.println("[LoRa] RX ERROR");
   Radio.Rx(0);
 }
 
-// =====================================================
-// SETUP
-// =====================================================
 void setup() {
-
-  Serial.begin(
-    115200
-  );
-
-  delay(
-    2000
-  );
+  Serial.begin(115200);
+  delay(2000);
 
   Serial.println();
   Serial.println(
@@ -695,34 +402,24 @@ void setup() {
   );
 
   Serial.println(
-    " Python Dashboard Bridge READY"
+    " Unified 7-State + C0~C4"
   );
 
   Serial.println(
     "================================"
   );
 
-  // Heltec V4 초기화
   Mcu.begin(
     HELTEC_BOARD,
     SLOW_CLK_TPYE
   );
 
-  Serial.println(
-    "[OK] MCU"
-  );
+  Serial.println("[OK] MCU");
 
-  // LoRa callback
-  RadioEvents.RxDone =
-    OnRxDone;
+  RadioEvents.RxDone = OnRxDone;
+  RadioEvents.RxTimeout = OnRxTimeout;
+  RadioEvents.RxError = OnRxError;
 
-  RadioEvents.RxTimeout =
-    OnRxTimeout;
-
-  RadioEvents.RxError =
-    OnRxError;
-
-  // LoRa init
   Radio.Init(
     &RadioEvents
   );
@@ -733,58 +430,31 @@ void setup() {
 
   Radio.SetRxConfig(
     MODEM_LORA,
-
     LORA_BANDWIDTH,
-
     LORA_SPREADING_FACTOR,
-
     LORA_CODINGRATE,
-
     0,
-
     LORA_PREAMBLE_LENGTH,
-
     LORA_SYMBOL_TIMEOUT,
-
     LORA_FIX_LENGTH_PAYLOAD_ON,
-
     0,
-
     true,
-
     0,
-
     0,
-
     LORA_IQ_INVERSION_ON,
-
     true
   );
 
-  Serial.println(
-    "[OK] LoRa RX"
+  Serial.println("[OK] LoRa RX");
+
+  Serial.printf(
+    "Frequency      : %.4f MHz\n",
+    RF_FREQUENCY / 1000000.0f
   );
 
-  Serial.print(
-    "Frequency      : "
-  );
-
-  Serial.print(
-    RF_FREQUENCY /
-    1000000.0f,
-    4
-  );
-
-  Serial.println(
-    " MHz"
-  );
-
-  Serial.print(
-    "Expected bytes : "
-  );
-
-  Serial.println(
-    sizeof(TelemetryPacket)
+  Serial.printf(
+    "Expected bytes : %u\n",
+    (unsigned)sizeof(TelemetryPacket)
   );
 
   Serial.println(
@@ -794,10 +464,6 @@ void setup() {
   Radio.Rx(0);
 }
 
-// =====================================================
-// LOOP
-// =====================================================
 void loop() {
-
   Radio.IrqProcess();
 }
