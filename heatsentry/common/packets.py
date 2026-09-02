@@ -37,7 +37,7 @@ class DeviceState(IntEnum):
     CAUTION = 3
     COOLING = 4
     EMERGENCY = 5
-    SENSOR CHECK = 6
+    SENSOR_CHECK = 6
 
 
 class StatusFlag(IntEnum):
