@@ -153,6 +153,32 @@ h1 { font-size: 32px; letter-spacing: -.04em; }
 .sensor-ok { color: #6ee7b7; }
 .sensor-warning { color: #fbbf24; }
 
+/* 벨트 펌웨어가 스스로 내린 판정. 관제(RiskIndex v0.3) 판정과 기준이 달라
+   갈릴 수 있으므로, 불일치하면 테두리로 드러낸다. */
+.belt-verdict {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid #2a3646;
+  border-left: 3px solid #64748b;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+  color: #8b9aae;
+}
+
+.belt-verdict strong { color: #d8e1ed; font-size: 13px; font-weight: 600; }
+
+.belt-verdict.mismatch { border-left-color: #fbbf24; }
+.belt-verdict.mismatch em {
+  color: #fbbf24;
+  font-style: normal;
+  font-size: 11px;
+}
+
 .raw-signals {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

@@ -1,8 +1,14 @@
 """현재 ESP32 LoRa 패킷을 RiskIndex 입력으로 변환한다.
 
-실물 35바이트 패킷에는 HRV와 IMU 활동량이 없다. 이 어댑터는 없는 값을 0으로
-가정하지 않고 해당 가중치를 품질 게이트로 제외한다. 따라서 실제 하드웨어
-RiskIndex는 HR, 피부온도 상승률, GSR 변화, 온습도 기반 환경 열부하만 사용한다.
+실물 35바이트 패킷에는 6특징 중 3개가 없다 — HRV(패킷에 RMSSD 필드 없음),
+ActivityLoad(IMU 미탑재), EnvHeatProxy(DHT 온습도 센서가 동작하지 않아
+하드웨어에서 제거됨). 이 어댑터는 없는 값을 0으로 가정하지 않고, 남은
+3특징(HR 편차·피부온도 상승률·GSR 변화)에 가중치를 재분배한 HARDWARE_CONFIG를
+쓴다. 자세한 근거는 risk_config.py의 HARDWARE_WEIGHTS 주석 참고.
+
+벨트 펌웨어는 자체 임계값으로 별도의 상태 판정을 하고 그 결과를 패킷에 실어
+보낸다(GloveTelemetryPacket.belt_state). 이 어댑터가 계산하는 RiskIndex v0.3과는
+판정 기준이 다르므로, 둘은 서로를 덮어쓰지 않고 나란히 관제로 올라간다.
 """
 
 from __future__ import annotations
@@ -11,7 +17,7 @@ from collections import deque
 from dataclasses import dataclass
 
 from heatsentry.algorithm.baseline import Baseline, BaselineBuilder, BaselineSample
-from heatsentry.algorithm.risk_config import DEFAULT_CONFIG, RiskConfig
+from heatsentry.algorithm.risk_config import HARDWARE_CONFIG, RiskConfig
 from heatsentry.algorithm.risk_engine import RiskEngine, RiskResult, SensorSample
 from heatsentry.common.glove_packets import GloveTelemetryPacket
 
@@ -30,7 +36,11 @@ class HardwareRiskReading:
 
 
 def env_heat_proxy(air_temp_c: float, humidity_percent: float) -> float:
-    """온습도만으로 만든 상대 열부하이며 WBGT로 표시하지 않는다."""
+    """온습도만으로 만든 상대 열부하이며 WBGT로 표시하지 않는다.
+
+    현재 벨트 하드웨어에는 DHT가 없어 이 함수를 타지 않는다. 환경 센서가
+    다시 붙거나 SU-E 환경 노드 값이 주입되면 그대로 재사용한다.
+    """
     proxy = (air_temp_c - 20.0) / 20.0 + (humidity_percent - 40.0) / 200.0
     return max(0.0, min(1.0, proxy))
 
@@ -43,7 +53,7 @@ def normalize_gsr_diff(gsr_diff: int) -> float:
 class HardwareRiskAdapter:
     """35바이트 ESP32 데이터용 기준선·추세·RiskIndex 상태 보관 객체."""
 
-    def __init__(self, config: RiskConfig = DEFAULT_CONFIG) -> None:
+    def __init__(self, config: RiskConfig = HARDWARE_CONFIG) -> None:
         self.config = config
         self.engine = RiskEngine(config)
         self.baseline_builder = BaselineBuilder(config.baseline)
@@ -79,6 +89,13 @@ class HardwareRiskAdapter:
         eda_quality = 100 if glove_valid else 0
         skin_slope = self._skin_slope(packet.skin_temp_c, monotonic_ms, glove_valid)
 
+        # DHT가 다시 붙으면 air_temp_c/humidity_percent가 값을 돌려주므로
+        # 환경 열부하가 자동으로 살아난다. 현재 펌웨어에서는 둘 다 None이다.
+        if dht_valid and packet.air_temp_c is not None and packet.humidity_percent is not None:
+            env_proxy = env_heat_proxy(packet.air_temp_c, packet.humidity_percent)
+        else:
+            env_proxy = None
+
         sample = SensorSample(
             hr_bpm=float(packet.bpm),
             hrv_rmssd=None,
@@ -86,11 +103,7 @@ class HardwareRiskAdapter:
             skin_temp_slope_c_per_min=skin_slope,
             eda_delta_norm=normalize_gsr_diff(packet.gsr_diff),
             activity_load=None,
-            env_heat_proxy=(
-                env_heat_proxy(packet.air_temp_c, packet.humidity_percent)
-                if dht_valid
-                else None
-            ),
+            env_heat_proxy=env_proxy,
             manual_sos=packet.emergency_active,
             quality_ppg=ppg_quality,
             quality_eda=eda_quality,

@@ -13,6 +13,29 @@ export type DeviceState =
 
 export type ActivityLabel = "REST" | "WALK" | "RUN" | "CRAWL" | "STATIC" | "UNKNOWN";
 
+// 벨트 펌웨어(firmware/belt_heltec)가 자체 임계값으로 내린 판정.
+// 게이트웨이의 RiskIndex v0.3 판정(DeviceState)과는 기준이 다르다 —
+// 현장에서 팬을 돌리고 장갑 OLED에 뜬 것은 이쪽 값이다.
+export type BeltState =
+  | "BOOT"
+  | "BASELINE"
+  | "NORMAL"
+  | "CAUTION"
+  | "COOLING_50"
+  | "DANGER"
+  | "EMERGENCY"
+  | "SENSOR_CHECK";
+
+export type BeltCause =
+  | "NONE"
+  | "HR_HIGH"
+  | "HR_CHANGE"
+  | "TEMP_UP"
+  | "GSR_UP"
+  | "HOT_ENV"
+  | "ACTIVE"
+  | "SENSOR";
+
 export interface QualityV2 {
   ppg: number;
   skin: number;
@@ -44,6 +67,9 @@ export interface RawGloveV2 {
   gps_fix: boolean | null;
   latitude: number | null;
   longitude: number | null;
+  belt_state: BeltState | null;
+  belt_cause: BeltCause | null;
+  belt_fan_on: boolean | null;
 }
 
 export interface RadioLinkV2 {
@@ -135,6 +161,28 @@ export const STATE_LABEL_KO: Record<DeviceState, string> = {
   COOLING: "냉각 중",
   EMERGENCY: "응급",
   FAULT: "고장",
+};
+
+export const BELT_STATE_LABEL_KO: Record<BeltState, string> = {
+  BOOT: "부팅",
+  BASELINE: "기준선 측정",
+  NORMAL: "정상",
+  CAUTION: "주의",
+  COOLING_50: "냉각 50%",
+  DANGER: "위험 · 냉각 100%",
+  EMERGENCY: "응급",
+  SENSOR_CHECK: "센서 확인",
+};
+
+export const BELT_CAUSE_LABEL_KO: Record<BeltCause, string> = {
+  NONE: "특이사항 없음",
+  HR_HIGH: "심박 상승",
+  HR_CHANGE: "심박 변동",
+  TEMP_UP: "피부온도 상승",
+  GSR_UP: "GSR 변화",
+  HOT_ENV: "고온 환경",
+  ACTIVE: "활동량 증가",
+  SENSOR: "센서 접촉 불량",
 };
 
 export const ACTIVITY_LABEL_KO: Record<ActivityLabel, string> = {

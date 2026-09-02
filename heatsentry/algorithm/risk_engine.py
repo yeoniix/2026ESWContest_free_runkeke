@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 
 from heatsentry.algorithm.baseline import Baseline
 from heatsentry.algorithm.risk_config import RiskConfig, DEFAULT_CONFIG
-from heatsentry.common.errors import ErrorCode
+from heatsentry.common.errors import ERROR_TABLE, ErrorCode
 
 # 특징 정규화 포화 상수 — 문서에 정확한 값이 없어 통합팀이 정할 자리(설계 기본값).
 HR_DEV_SATURATION_STD = 4.0  # 개인 기준 심박 표준편차의 몇 배에서 feature=1.0
@@ -102,26 +102,38 @@ def compute_features(sample: SensorSample, baseline: Baseline) -> dict[str, floa
 
 def _quality_multipliers(sample: SensorSample, config: RiskConfig) -> tuple[dict[str, float], list[ErrorCode]]:
     gates = config.quality
+    weights = config.weights.as_dict()
     errors: list[ErrorCode] = []
+
+    def report(code: ErrorCode) -> None:
+        """가중치가 0인 특징의 결손은 오류가 아니라 설계다.
+
+        현재 하드웨어 프로필(HARDWARE_CONFIG)은 HRV·IMU·환경 온습도를 아예
+        쓰지 않는다. 그 자리에 E104/E105를 매 초 올리면 실제로 조치가 필요한
+        E101(손가락 이탈)·E103(온도 센서 정지)이 상시 경고에 묻힌다.
+        """
+        feature = ERROR_TABLE[code].excludes_feature
+        if feature is None or weights.get(feature, 0.0) > 0:
+            errors.append(code)
 
     ppg_ok = sample.quality_ppg >= gates.ppg_quality_min
     if not ppg_ok:
-        errors.append(ErrorCode.E101)
+        report(ErrorCode.E101)
     q_hr = (sample.quality_ppg / 100.0) if ppg_ok else 0.0
 
     eda_ok = sample.quality_eda >= gates.eda_quality_min
     if not eda_ok:
-        errors.append(ErrorCode.E102)
+        report(ErrorCode.E102)
     q_eda = (sample.quality_eda / 100.0) if eda_ok else 0.0
 
     skin_ok = sample.skin_temp_stale_s <= gates.skin_temp_stale_s
     if not skin_ok:
-        errors.append(ErrorCode.E103)
+        report(ErrorCode.E103)
     q_skin = 1.0 if skin_ok else 0.0
 
     activity_ok = sample.imu_ok and sample.activity_load is not None
     if not activity_ok:
-        errors.append(ErrorCode.E104)
+        report(ErrorCode.E104)
     q_activity = 1.0 if activity_ok else 0.0
 
     hrv_ok = ppg_ok and sample.hrv_rmssd is not None
@@ -132,7 +144,7 @@ def _quality_multipliers(sample: SensorSample, config: RiskConfig) -> tuple[dict
         and sample.quality_env >= gates.env_quality_min
     )
     if not env_ok:
-        errors.append(ErrorCode.E105)
+        report(ErrorCode.E105)
     q_env = (sample.quality_env / 100.0) if env_ok else 0.0
 
     return (

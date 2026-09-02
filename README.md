@@ -133,7 +133,7 @@ npx eslint .
 
 - [docs/concept.md](docs/concept.md) — 제품 개념, 서브시스템 책임, 안전 경계
 - [docs/architecture.md](docs/architecture.md) — 인터페이스 목록, 상태기계, 명령 중재, 코드 매핑
-- [docs/ai_pipeline.md](docs/ai_pipeline.md) — RiskIndex v0.3 공식·하드웨어 4특징·품질 게이트·기준선
+- [docs/ai_pipeline.md](docs/ai_pipeline.md) — RiskIndex v0.3 공식·하드웨어 3특징 프로필·품질 게이트·기준선·벨트 별도 판정
 - [docs/demo_scenario.md](docs/demo_scenario.md) — 실행 방법, 시험 벡터 ↔ 시나리오 매핑, 140초 시연 대본
 - [docs/aar_design.md](docs/aar_design.md) — 데이터 보존, 해시체인 무결성, 내보내기, 개인정보 최소화
 - [docs/api_contract.md](docs/api_contract.md) — GATT 서비스, 패킷 바이트 레이아웃, 오류코드, 저하 모드

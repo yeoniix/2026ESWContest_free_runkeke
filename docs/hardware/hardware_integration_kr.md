@@ -29,16 +29,17 @@ HeatSentry는 의료 진단 장비가 아니다. 표시되는 심박, 피부온�
 
 - 손목 ESP32가 MAX30102, TMP117, GSR 센서를 읽는다.
 - 손목 ESP32가 센서값을 1초마다 ESP-NOW 브로드캐스트로 벨트에 보낸다.
-- 벨트 ESP32가 손목 데이터, DHT11 환경 데이터, GPS 데이터, 비상 버튼을 한곳에 모은다.
+- 벨트 ESP32가 손목 데이터, GPS 데이터, 비상 버튼을 한곳에 모은다.
+  (DHT11 환경 데이터는 센서 불량으로 현재 구성에서 빠졌다 — 11.4 참고)
 - 상태 판단은 손목이 아니라 벨트에서 수행한다.
 - 벨트가 상태를 0.5초마다 손목으로 다시 보내고, 손목 OLED가 그 결과만 표시한다.
 - 손목은 경고 상태를 받으면 진동한다.
 - 벨트는 피부온도 또는 비상 상태에 따라 팬을 켜거나 끈다.
-- 벨트는 손목·DHT11·GPS·팬·비상 정보를 35바이트 LoRa 패킷으로 2초마다 송신한다.
+- 벨트는 손목·GPS·팬·비상 정보와 자신의 상태 판정을 35바이트 LoRa 패킷으로 2초마다 송신한다.
 
 ### 1.2 GitHub 저장소에서 구현된 기능
 
-- Python 기반 RiskIndex/FSM 알고리즘, ESP32 4특징 어댑터와 결정적 시뮬레이터
+- Python 기반 RiskIndex/FSM 알고리즘, ESP32 3특징 어댑터와 결정적 시뮬레이터
 - FastAPI 게이트웨이의 `/ingest/*`, `/api/v2/*`, `/ws/live`
 - SQLite 텔레메트리·이벤트 저장 및 이벤트 해시체인
 - React/Vite 실시간 관제 대시보드
@@ -60,7 +61,7 @@ Telemetry로 바꾸지만, USB 시리얼을 읽는 실행 프로세스는 아직
 - `risk_index`
 
 따라서 현재 패킷만으로는 벨트가 판정한 `WARNING`, `DANGER`, `HIGH_RISK`를 그대로 알 수는 없다.
-다만 `heatsentry/server/lora_adapter.py`는 수신한 실물값으로 동일한 4특징 RiskIndex를 계산해 관제용
+다만 `heatsentry/server/lora_adapter.py`는 수신한 실물값으로 3특징 RiskIndex를 계산해 관제용
 상태를 만들 수 있다. 이 문서의 12장에서 다음 두 연결 방법을 설명한다.
 
 1. 펌웨어를 바꾸지 않고 35바이트를 사용하여 원시 센서·GPS와 제한된 상태를 표시하는 방법
@@ -605,8 +606,8 @@ OLED는 `SSD1306 128x64`, I2C 주소 `0x3C`를 사용한다. 벨트에서 받은
 | 9 | 2 | `gsr` | 0~65535 |
 | 11 | 2 | `gsrDiff` | signed |
 | 13 | 4 | `ir` | MAX30102 IR |
-| 17 | 2 | `airTemp_x10` | `/10 = °C` |
-| 19 | 2 | `humidity_x10` | `/10 = %` |
+| 17 | 2 | `airTemp_x10` | **용도 변경** — `(state << 8) \| cause`. 아래 11.4 참고 |
+| 19 | 2 | `humidity_x10` | 현재 미사용(항상 0) |
 | 21 | 4 | `latitude_e7` | `/10,000,000 = °` |
 | 25 | 4 | `longitude_e7` | `/10,000,000 = °` |
 | 29 | 1 | `satellites` | 위성 수 |
@@ -619,12 +620,40 @@ OLED는 `SSD1306 128x64`, I2C 주소 `0x3C`를 사용한다. 벨트에서 받은
 | bit | 마스크 | 의미 |
 | ---: | ---: | --- |
 | 0 | `0x01` | 최근 5초 안에 손목 데이터 수신 |
-| 1 | `0x02` | 현재 DHT11 읽기 유효 |
+| 1 | `0x02` | DHT11 읽기 유효 — **현재 펌웨어는 세우지 않는다**(센서 제거) |
 | 2 | `0x04` | GPS 위치 유효, age < 15초 |
 | 3 | `0x08` | 손가락 감지 |
 | 4 | `0x10` | 비상 활성 |
 | 5 | `0x20` | 팬 ON |
 | 6~7 | — | 예약 |
+
+### 11.4 `airTemp_x10` 자리의 용도 변경 (DHT11 제거)
+
+DHT11이 팬 동작 중 읽기 실패를 반복해(5.3절 노이즈 대책으로도 해결되지 않아) 현재
+구성에서 제거됐다. 펌웨어는 비어 버린 16비트 자리를 **벨트가 판정한 상태·원인 코드**를
+관제로 올리는 데 재활용한다.
+
+```c
+// firmware/belt_heltec/belt_heltec.ino, makeTelemetryPacket()
+txData.airTemp_x10  = (state << 8) | cause;   // display_protocol.h의 StateCode/CauseCode
+txData.humidity_x10 = 0;                       // 미사용
+// flags의 DHT_DATA(bit1)는 세우지 않는다
+```
+
+**DHT_DATA 플래그가 이 자리의 의미를 결정한다.**
+
+| DHT_DATA | `airTemp_x10` 해석 | `humidity_x10` |
+| --- | --- | --- |
+| 0 (현재) | 상위 바이트 = state, 하위 바이트 = cause | 미사용 |
+| 1 (DHT 복귀 시) | 기온 × 10 | 습도 × 10 |
+
+`heatsentry/common/glove_packets.py`는 플래그를 보고 둘 중 하나만 유효값으로 돌려주고
+나머지 쪽에는 `None`을 준다. 이 규칙 덕분에 DHT를 다시 붙이면 디코더·어댑터를 고치지
+않아도 환경 열부하가 자동으로 살아난다.
+
+> 주의: 이 변경은 `version` 필드를 올리지 않고 이뤄졌다. 같은 `version=1` 패킷이
+> 플래그에 따라 다른 의미를 갖는 상태이므로, 다음 패킷 개정 때는 `version`을 2로
+> 올리고 상태·원인을 정식 필드로 분리하는 것이 좋다.
 
 저장소의 `heatsentry/common/glove_packets.py` 디코더는 35바이트 구조를 정확히 풀지만 현재
 `TelemetryFlags` 열거형에는 bit 0~3만 이름이 정의돼 있다. 비상·팬을 사용하려면 다음 두 값을
@@ -693,8 +722,9 @@ extended_sequence = wrap_count * 65536 + new_raw
 ### 12.2 권장: 35바이트 실물값으로 RiskIndex 계산하는 브리지
 
 수신기 프로세스는 `LoRaTelemetryAdapter`를 한 번 생성한 뒤 패킷마다 재사용한다. 이 어댑터는
-3~5분 유효 착용 구간으로 개인 기준선을 만들고, HR·피부온도 상승률·GSR 변화·온습도 열부하만으로
-RiskIndex를 계산한다. HRV와 IMU 활동량은 없는 값으로 0을 넣지 않고 가중치에서 제외한다.
+3~5분 유효 착용 구간으로 개인 기준선을 만들고, **HR 편차·피부온도 상승률·GSR 변화** 세 특징으로
+RiskIndex를 계산한다. HRV(패킷에 RMSSD 없음)·ActivityLoad(IMU 미탑재)·EnvHeatProxy(DHT 제거)는
+없는 값으로 0을 넣지 않고 가중치를 남은 세 특징에 재분배한다(`HARDWARE_CONFIG`).
 
 ```python
 import requests
@@ -712,8 +742,12 @@ def handle_packet(payload: bytes, rssi: int, snr: int) -> None:
 ```
 
 손가락 미착용, BPM 범위 밖, 장갑 데이터 무효인 경우에는 `FAULT`/`SENSOR_CHECK`으로 처리하고
-RiskIndex를 계산하지 않는다. DHT11 데이터가 없으면 유효 가중치가 0.55가 되어
-`SENSOR_LIMITED`로 표시된다.
+RiskIndex를 계산하지 않는다. DHT가 없다는 이유만으로는 `SENSOR_LIMITED`가 되지 않는다 —
+설계에서 이미 제외한 센서이기 때문이다. 유효 가중치가 0.60 아래로 떨어지는 것은 손가락 이탈
+같은 실제 품질 저하일 때뿐이다.
+
+어댑터는 벨트가 패킷에 실어 보낸 자체 판정(`raw.belt_state`/`raw.belt_cause`)을 게이트웨이
+판정과 나란히 올린다. 둘이 갈리면 `active_errors`에 `BELT_STATE_MISMATCH`가 붙는다.
 
 ### 12.3 이전 raw-only 최소 브리지
 
@@ -753,18 +787,23 @@ def convert_packet(payload: bytes, rssi: int, snr: int, extended_seq: int) -> di
     active_errors = []
     if not glove_ok or not finger_ok or p.bpm <= 0:
         active_errors.append("SENSOR_CHECK")
-    if not dht_ok:
-        active_errors.append("DHT_INVALID")
     if not gps_ok:
         active_errors.append("GPS_NO_FIX")
+    # DHT 미탑재는 오류가 아니다 — 설계에서 제외된 센서다.
 
-    # 35B v1에는 정확한 벨트 state가 없으므로 가능한 범위만 표현한다.
+    # 벨트가 판정한 상태가 패킷에 실려 온다(11.4절). 아래 표는 벨트 코드 체계를
+    # 게이트웨이 DeviceState로 옮긴 것이며, 비상 버튼이 언제나 우선한다.
+    belt_to_state = {
+        "BOOT": "BOOT", "BASELINE": "BASELINE", "NORMAL": "NORMAL",
+        "CAUTION": "WARNING", "COOLING_50": "COOLING", "DANGER": "COOLING",
+        "EMERGENCY": "EMERGENCY", "SENSOR_CHECK": "FAULT",
+    }
     if emergency:
         state = "EMERGENCY"
     elif not glove_ok or not finger_ok or p.bpm <= 0:
         state = "FAULT"
-    elif fan_on:
-        state = "COOLING"
+    elif p.belt_state is not None:
+        state = belt_to_state[p.belt_state.name]
     else:
         state = "NORMAL"
 
@@ -798,8 +837,11 @@ def convert_packet(payload: bytes, rssi: int, snr: int, extended_seq: int) -> di
             "gsr": p.gsr if glove_ok else None,
             "gsr_diff": p.gsr_diff if glove_ok else None,
             "ir": p.ir if glove_ok else None,
-            "air_temp_c": p.air_temp_c if dht_ok else None,
-            "humidity_percent": p.humidity_percent if dht_ok else None,
+            "air_temp_c": p.air_temp_c,          # DHT 미탑재 시 None
+            "humidity_percent": p.humidity_percent,
+            "belt_state": p.belt_state.name if p.belt_state else None,
+            "belt_cause": p.belt_cause.name if p.belt_cause else None,
+            "belt_fan_on": fan_on,
             "finger_detected": finger_ok,
             "glove_data": glove_ok,
             "dht_data": dht_ok,

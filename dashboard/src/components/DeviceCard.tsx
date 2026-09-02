@@ -1,5 +1,5 @@
 import type { TelemetryV2 } from "../types/device";
-import { STATE_LABEL_KO } from "../types/device";
+import { BELT_CAUSE_LABEL_KO, BELT_STATE_LABEL_KO, STATE_LABEL_KO } from "../types/device";
 
 interface DeviceCardProps {
   telemetry: TelemetryV2;
@@ -41,6 +41,12 @@ export default function DeviceCard({ telemetry }: DeviceCardProps) {
     ? (causeLabels[strongestSignal] ?? strongestSignal)
     : telemetry.risk_index === 255 ? "상태 계산 대기" : "특이사항 없음";
   const sensorStatus = telemetry.active_errors.length > 0 ? telemetry.active_errors.join(", ") : "센서 정상";
+
+  // 벨트 펌웨어가 스스로 내린 판정. LoRa가 끊겨도 현장에서는 이 판정으로
+  // 팬이 돌고 장갑 화면이 바뀌므로, 관제 판정과 함께 보여준다.
+  const beltState = telemetry.raw?.belt_state ?? null;
+  const beltCause = telemetry.raw?.belt_cause ?? null;
+  const beltMismatch = telemetry.active_errors.includes("BELT_STATE_MISMATCH");
 
   return (
     <div className={stateClass(telemetry.state)}>
@@ -85,10 +91,23 @@ export default function DeviceCard({ telemetry }: DeviceCardProps) {
         </div>
       </div>
 
+      {beltState && (
+        <div className={beltMismatch ? "belt-verdict mismatch" : "belt-verdict"}>
+          <span>현장 장치 판정</span>
+          <strong>
+            {BELT_STATE_LABEL_KO[beltState]}
+            {beltCause && beltCause !== "NONE" ? ` · ${BELT_CAUSE_LABEL_KO[beltCause]}` : ""}
+          </strong>
+          {beltMismatch && <em>관제 판정과 불일치</em>}
+        </div>
+      )}
+
       {telemetry.raw && (
         <div className="raw-signals">
           <span>GSR <strong>{telemetry.raw.gsr ?? "—"}</strong></span>
-          <span>환경 <strong>{telemetry.raw.air_temp_c ?? "—"}℃ / {telemetry.raw.humidity_percent ?? "—"}%</strong></span>
+          {telemetry.raw.air_temp_c !== null && (
+            <span>환경 <strong>{telemetry.raw.air_temp_c}℃ / {telemetry.raw.humidity_percent ?? "—"}%</strong></span>
+          )}
           <span>Finger <strong>{telemetry.raw.finger_detected ? "YES" : "NO"}</strong></span>
           <span>LoRa <strong>{telemetry.radio?.rssi_dbm ?? "—"} dBm</strong></span>
           <span>GPS <strong>{telemetry.raw.gps_fix ? `${telemetry.raw.latitude?.toFixed(5) ?? "—"}, ${telemetry.raw.longitude?.toFixed(5) ?? "—"}` : "NO FIX"}</strong></span>

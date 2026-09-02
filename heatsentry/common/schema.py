@@ -12,7 +12,7 @@
       "quality": {"ppg": 82, "skin": 96, "eda": 55, "imu": 100},
       "signals": {"hr_bpm": 148, "skin_c": 35.72, "activity": "RUN"},
       "cooling": {"requested": 2, "actual_pwm": 60, "current_ma": 284},
-    "config_version": "0.3.0",
+    "config_version": "0.4.0",
       "sequence": 1842
     }
 """
@@ -27,6 +27,17 @@ DeviceStateName = Literal[
     "BOOT", "BASELINE", "NORMAL", "WARNING", "COOLING", "EMERGENCY", "FAULT"
 ]
 ActivityName = Literal["REST", "WALK", "RUN", "CRAWL", "STATIC", "UNKNOWN"]
+
+# 벨트 펌웨어(firmware/belt_heltec)의 StateCode/CauseCode 이름.
+# 값 정의는 heatsentry/common/glove_packets.py의 BeltStateCode/BeltCauseCode.
+BeltStateName = Literal[
+    "BOOT", "BASELINE", "NORMAL", "CAUTION", "COOLING_50", "DANGER",
+    "EMERGENCY", "SENSOR_CHECK",
+]
+BeltCauseName = Literal[
+    "NONE", "HR_HIGH", "HR_CHANGE", "TEMP_UP", "GSR_UP", "HOT_ENV",
+    "ACTIVE", "SENSOR",
+]
 
 
 class QualityV2(BaseModel):
@@ -54,14 +65,21 @@ class RawGloveV2(BaseModel):
     gsr: int | None = None
     gsr_diff: int | None = None
     ir: int | None = None
-    air_temp_c: float | None = None
-    humidity_percent: float | None = None
+    air_temp_c: float | None = None       # DHT 미탑재 시 None
+    humidity_percent: float | None = None  # DHT 미탑재 시 None
     finger_detected: bool | None = None
     glove_data: bool | None = None
     dht_data: bool | None = None
     gps_fix: bool | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
+
+    # 벨트 펌웨어가 자체 임계값으로 내린 판정. 게이트웨이의 RiskIndex v0.3 판정
+    # (상위 state 필드)과 기준이 다르므로 덮어쓰지 않고 나란히 싣는다.
+    # 현장 장치가 실제로 한 행동은 이쪽이다 — 팬과 장갑 OLED를 이 값이 구동한다.
+    belt_state: BeltStateName | None = None
+    belt_cause: BeltCauseName | None = None
+    belt_fan_on: bool | None = None
 
 
 class RadioLinkV2(BaseModel):
@@ -84,7 +102,7 @@ class TelemetryV2(BaseModel):
     active_errors: list[str] = Field(default_factory=list)
     raw: RawGloveV2 | None = None
     radio: RadioLinkV2 | None = None
-    config_version: str = "0.3.0"
+    config_version: str = "0.4.0"
     sequence: int
 
 

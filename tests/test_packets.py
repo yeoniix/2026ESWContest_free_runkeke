@@ -97,3 +97,20 @@ def test_belt_status_round_trip():
     decoded = BeltStatus.decode(packet)
     assert decoded.fan_pwm_percent == 60
     assert decoded.fan_rpm == 4200
+
+
+def test_version_constants_have_a_single_source():
+    """같은 버전을 두 곳에 적어 두면 조용히 갈라진다.
+
+    실제로 heatsentry/common/__init__.py에 RISK_CONFIG_VERSION이 0.3.0으로
+    복제돼 있어, risk_config.py를 0.4.0으로 올린 뒤에도 옛 값이 남아 있었다.
+    """
+    import heatsentry.common as common
+    from heatsentry.algorithm.risk_config import RISK_CONFIG_VERSION
+    from heatsentry.common.packets import PROTOCOL_VERSION
+
+    assert common.PROTOCOL_VERSION is PROTOCOL_VERSION
+    assert not hasattr(common, "RISK_CONFIG_VERSION"), (
+        "RISK_CONFIG_VERSION은 algorithm/risk_config.py 한 곳에만 있어야 한다"
+    )
+    assert RISK_CONFIG_VERSION == "0.4.0"

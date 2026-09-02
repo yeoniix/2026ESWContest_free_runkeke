@@ -10,7 +10,7 @@
 | 항목 | 기준 | 이 저장소 위치 |
 | --- | --- | --- |
 | protocol_version | 2 | `heatsentry/common/PROTOCOL_VERSION`, `heatsentry/common/packets.py` |
-| risk_config_version | 0.3.0 | `heatsentry/algorithm/risk_config.py`의 `RISK_CONFIG_VERSION` |
+| risk_config_version | 0.4.0 | `heatsentry/algorithm/risk_config.py`의 `RISK_CONFIG_VERSION` |
 | gateway_schema | 2.0 | `heatsentry/common/GATEWAY_SCHEMA_VERSION`, `heatsentry/common/schema.py` |
 | test_vector | TV-20260808-A | `heatsentry/simulator/scenarios.py` (결정적 재생, 난수 없음) |
 
@@ -55,7 +55,7 @@ little-endian이므로 서버/게이트웨이 디코더도 같은 순서(`<HBBHB
 | flags bit | 의미 |
 | --- | --- |
 | 0 | 장갑 데이터 유효 |
-| 1 | DHT11 데이터 유효 |
+| 1 | DHT11 데이터 유효 — **현재 펌웨어는 세우지 않는다** |
 | 2 | GPS Fix 유효 |
 | 3 | Finger 감지 |
 | 4 | 벨트 비상 버튼 활성 |
@@ -65,9 +65,65 @@ little-endian이므로 서버/게이트웨이 디코더도 같은 순서(`<HBBHB
 `SENSOR CHECK / WEAR GLOVE` 상태로 처리한다. 이 LoRa payload는 현장 하드웨어
 중간 형식이며, 게이트웨이 API의 `TelemetryV2`와는 별개다.
 
-현재 ESP32 패킷에는 HRV와 IMU 활동량이 없으므로 `heatsentry/algorithm/hardware_adapter.py`는
-HR·피부온도 상승률·GSR 변화·온습도 환경열부하 4개 특징만 사용한다. 없는 두 특징은
-0으로 넣지 않고 가중치에서 제외한 뒤 남은 0.75 가중치로 재정규화한다.
+#### `airTemp_x10` 자리의 용도 변경 (중요)
+
+벨트에서 DHT11 온습도 센서가 동작하지 않아 하드웨어에서 제거됐다. 펌웨어는 빈
+16비트 자리를 자신이 판정한 상태·원인 코드를 관제로 올리는 데 재활용한다.
+
+```c
+// firmware/belt_heltec/belt_heltec.ino, makeTelemetryPacket()
+txData.airTemp_x10  = (state << 8) | cause;   // DisplayPacket과 같은 코드 체계
+txData.humidity_x10 = 0;                       // 미사용
+// flags의 DHT_DATA(bit1)는 세우지 않는다
+```
+
+**DHT_DATA 플래그가 이 자리의 의미를 결정한다.** 서 있으면 옛 정의대로 기온/습도,
+서 있지 않으면(현재 펌웨어) 벨트의 상태/원인이다. 디코더
+`heatsentry/common/glove_packets.py`는 플래그를 보고 둘 중 하나만 유효한 값으로
+돌려주고, 나머지 쪽에는 `None`을 준다. 상태/원인 코드값은
+`firmware/*/display_protocol.h`의 `StateCode`/`CauseCode`와 같으며,
+`tests/test_display_protocol_sync.py`가 펌웨어 헤더와 파이썬 정의의 일치를 검사한다.
+
+#### 실물 하드웨어의 RiskIndex 특징 (3개)
+
+현재 패킷에는 6특징 중 3개가 없다 — HRV(RMSSD 필드 없음), ActivityLoad(IMU 미탑재),
+EnvHeatProxy(DHT 제거). `heatsentry/algorithm/hardware_adapter.py`는 없는 값을 0으로
+넣지 않고, 남은 3특징에 가중치를 재분배한 `HARDWARE_CONFIG`를 쓴다.
+
+| 특징 | 설계 가중치 | 하드웨어 프로필 |
+| --- | --- | --- |
+| HR_dev | 0.25 | 0.45 |
+| SkinTemp_slope | 0.20 | 0.37 |
+| EDA_delta | 0.10 | 0.18 |
+| HRV_suppression | 0.10 | 0.00 (패킷에 없음) |
+| ActivityLoad | 0.15 | 0.00 (IMU 미탑재) |
+| EnvHeatProxy | 0.20 | 0.00 (DHT 제거) |
+
+RiskIndex는 `valid_weight`로 나눠 재정규화하므로 **점수 자체는 달라지지 않는다.**
+달라지는 것은 `valid_weight`의 의미다 — 설계 가중치를 그대로 쓰면 살아있는 가중치가
+0.55로 고정돼 실물 장비가 항상 `SENSOR_LIMITED`로 보고됐고, 실제 조치가 필요한
+품질 저하(E101 손가락 이탈, E103 온도 센서 정지)와 구분되지 않았다. 같은 이유로
+가중치가 0인 특징의 결손은 오류로 보고하지 않는다(E104/E105 상시 발생 방지).
+
+#### 판정이 두 벌인 이유
+
+벨트 펌웨어는 LoRa가 끊겨도 팬과 장갑 OLED를 스스로 구동해야 하므로 자체
+위험점수·상태기계를 갖고 있고, 게이트웨이는 같은 패킷으로 RiskIndex v0.3을 따로
+계산한다. 두 판정은 임계값도 입력 특징도 다르다.
+
+| | 게이트웨이 (RiskIndex v0.3) | 벨트 펌웨어 |
+| --- | --- | --- |
+| 점수 | 3~6특징 가중합, 품질 재정규화 | BPM/피부온도/GSR 가산식 |
+| 경고 | WARNING: risk≥60, 10초 | CAUTION: risk≥40, 즉시 |
+| 팬 50% | C1: risk≥80, 10초 | risk 60~84, 10초 |
+| 팬 100% | C2: risk≥90, 10초 | risk≥85, 10초 |
+| 기준선 | 3~5분, 품질 게이트, median/MAD | 3분, 단순 평균 |
+| 강등 | 히스테리시스(70/30초 등) | 없음 |
+
+`heatsentry/server/lora_adapter.py`는 **어느 한쪽으로 덮어쓰지 않는다.** 게이트웨이
+판정은 `state`/`risk_index`에, 벨트 판정은 `raw.belt_state`/`raw.belt_cause`에 실린다.
+현장에서 팬이 돌고 장갑 화면이 바뀐 근거는 후자다. 둘이 갈리면 `active_errors`에
+`BELT_STATE_MISMATCH`를 남겨 관제 화면에 드러낸다.
 
 **공통 헤더 + HS_STATUS (24B)** — `heatsentry/common/packets.py`의 `HsStatus`:
 

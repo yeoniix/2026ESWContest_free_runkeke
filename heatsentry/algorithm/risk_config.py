@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-RISK_CONFIG_VERSION = "0.3.0"
+RISK_CONFIG_VERSION = "0.4.0"
 
 
 @dataclass(frozen=True)
@@ -154,3 +154,41 @@ class RiskConfig:
 
 
 DEFAULT_CONFIG = RiskConfig()
+"""6특징 전부를 쓰는 설계 기준 설정. 시뮬레이터(SU-W/SU-B/SU-E)가 이 값을 쓴다."""
+
+
+# ---------------------------------------------------------------------------
+# 현재 실물 하드웨어 프로필
+# ---------------------------------------------------------------------------
+# 실물 35바이트 LoRa 패킷에는 6특징 중 3개가 아예 오지 않는다.
+#
+#   HRV_suppression  손목 PPG가 RMSSD를 산출하지 않는다(패킷에 필드 없음)
+#   ActivityLoad     IMU 미탑재
+#   EnvHeatProxy     DHT 온습도 센서가 동작하지 않아 하드웨어에서 제거됐다.
+#                    벨트 펌웨어는 그 자리(airTemp_x10)를 state/cause 전송에
+#                    재활용하며 DHT_DATA 플래그를 세우지 않는다.
+#
+# 설계 가중치를 그대로 쓰면 살아있는 가중치 합이 0.25+0.20+0.10 = 0.55로
+# min_valid_weight(0.60)에 항상 미달해, 실물 장비가 무조건 SENSOR_LIMITED로
+# 보고되는 문제가 있었다. 남은 3특징에 가중치를 재분배해 합이 1.00이 되게 한다.
+#
+# RiskIndex는 valid_weight로 나눠 재정규화하므로, 가중치를 비례 확대해도
+# 점수 자체는 달라지지 않는다. 달라지는 것은 valid_weight의 의미뿐이다 —
+# 이제 0.60 미달은 "설계상 없는 센서" 때문이 아니라 실제 센서 품질 저하
+# (E101 손가락 이탈, E103 온도 정지 등)일 때만 발생한다.
+HARDWARE_WEIGHTS = RiskWeights(
+    HR_dev=0.45,           # 0.25 / 0.55
+    HRV_suppression=0.0,   # 패킷에 RMSSD 없음
+    SkinTemp_slope=0.37,   # 0.20 / 0.55
+    EDA_delta=0.18,        # 0.10 / 0.55
+    ActivityLoad=0.0,      # IMU 미탑재
+    EnvHeatProxy=0.0,      # DHT 제거
+)
+
+HARDWARE_CONFIG = RiskConfig(weights=HARDWARE_WEIGHTS)
+"""현재 ESP32/Heltec 하드웨어용 설정. HardwareRiskAdapter의 기본값이다.
+
+FSM 임계값·기준선·품질 게이트는 DEFAULT_CONFIG와 같고 가중치만 다르다.
+DHT가 다시 붙으면 HARDWARE_WEIGHTS를 지우고 DEFAULT_CONFIG로 되돌린 뒤
+RISK_CONFIG_VERSION을 올린다.
+"""
