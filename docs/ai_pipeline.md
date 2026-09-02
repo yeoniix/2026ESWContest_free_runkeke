@@ -1,7 +1,7 @@
 # RiskIndex v0.3 알고리즘
 
-> 기준 문서: HS-PDD-002 v2.0 "위험도 엔진과 데이터 전략". 구현: `algorithm/risk_engine.py`,
-> `algorithm/baseline.py`, `algorithm/risk_config.py`.
+> 기준 문서: HS-PDD-002 v2.0 "위험도 엔진과 데이터 전략". 구현: `heatsentry/algorithm/risk_engine.py`,
+> `heatsentry/algorithm/baseline.py`, `heatsentry/algorithm/risk_config.py`.
 >
 > 이 문서는 옛 기획(README 구버전)의 "룰 기반 + ML + 딥러닝 하이브리드" 구상을 대체한다.
 > v2.0 기준선은 **1단계(설명 가능한 규칙 기반)만 P1 범위로 확정**하고, ML/TinyML 고도화는
@@ -28,7 +28,7 @@ HardTrigger = manual_sos OR (fall AND no_motion AND no_response)
 - `w_i`: 특징별 고정 가중치(표 참고). 합이 1.00이 되도록 설계됐다.
 - `q_i`: 그 특징을 만든 센서의 품질(0~1). 접촉 불량·저품질이면 0으로 떨어져 자동으로
   가중합에서 빠지고 나머지가 재정규화된다 — 별도의 "제외 로직"이 아니라 공식 자체가 그렇게
-  동작한다(`algorithm/risk_engine.py`의 `RiskEngine.evaluate`).
+  동작한다(`heatsentry/algorithm/risk_engine.py`의 `RiskEngine.evaluate`).
 - `feature_i`: 0~1로 정규화된 위험 신호. 계산식은 `compute_features()` 참고.
 
 구현이 문서 공식과 정확히 같은 변수명을 쓰도록 맞춰 뒀다(`weighted_sum`, `valid_weight`).
@@ -42,15 +42,15 @@ HardTrigger = manual_sos OR (fall AND no_motion AND no_response)
 | SkinTemp_slope | 0.20 | 피부온도 상승률(°C/min) | 0.3°C/min에서 포화 |
 | EDA_delta | 0.10 | 개인 기준 EDA 변화 | 호출측이 이미 0~1 델타로 정규화해 전달 |
 | ActivityLoad | 0.15 | IMU 기반 활동 강도 | 0~1 그대로 사용(운동 자체가 발열원이라는 전제) |
-| EnvHeatProxy | 0.20 | 환경 상대열부하 | `firmware/simulator/env_node.py`가 생성, WBGT_ref와는 별도 지표 |
+| EnvHeatProxy | 0.20 | 환경 상대열부하 | `heatsentry/simulator/env_node.py`가 생성, WBGT_ref와는 별도 지표 |
 
 포화 상수(4-시그마, 0.3°C/min 등)는 PDD 원문에 정확한 숫자가 없어 통합팀이 정할 자리다.
-`algorithm/risk_engine.py` 상단에 "설계 기본값" 주석으로 표시해 뒀고, 실측 데이터가 쌓이면
+`heatsentry/algorithm/risk_engine.py` 상단에 "설계 기본값" 주석으로 표시해 뒀고, 실측 데이터가 쌓이면
 `risk_config_version`을 올리면서 바꾸면 된다.
 
 ## 현재 ESP32 하드웨어 프로파일
 
-현재 35바이트 LoRa 패킷에는 HRV와 IMU 활동량이 없다. `algorithm/hardware_adapter.py`는
+현재 35바이트 LoRa 패킷에는 HRV와 IMU 활동량이 없다. `heatsentry/algorithm/hardware_adapter.py`는
 그 사실을 명시적으로 반영해 아래 네 특징만 계산한다.
 
 | 실물 입력 | RiskIndex 특징 | 계산 방식 |
@@ -103,25 +103,25 @@ E: 환경 열부하       = clamp((기온 - 20)/20 + (습도 - 40)/200, 0, 1)
 | E104 | IMU 응답 없음 | ActivityLoad(+ 낙상 검출 비활성) |
 | E105 | 환경 온습도 데이터 없음/저품질 | EnvHeatProxy |
 
-전체 오류코드 표와 로컬/관제 동작은 [../firmware/api_contract.md](../firmware/api_contract.md),
-구현은 `common/errors.py`.
+전체 오류코드 표와 로컬/관제 동작은 [api_contract.md](api_contract.md),
+구현은 `heatsentry/common/errors.py`.
 
 ## 기준선(Baseline)
 
 - 착용 후 3~5분, PPG Quality≥70 & EDA Quality≥40인 구간만 사용.
-- 중앙값(median)과 MAD(Median Absolute Deviation)로 이상치를 배제한다(`algorithm/baseline.py`).
+- 중앙값(median)과 MAD(Median Absolute Deviation)로 이상치를 배제한다(`heatsentry/algorithm/baseline.py`).
 - 5분 안에 기준선이 만들어지지 않으면 제한 모드로 전환하고 재착용을 요청한다
-  (`firmware/simulator/wrist_node.py`의 `BASELINE_FAILED` 이벤트).
+  (`heatsentry/simulator/wrist_node.py`의 `BASELINE_FAILED` 이벤트).
 
 ## 상태기계와의 연결
 
-RiskIndex는 그 자체로 상태를 정하지 않는다. `algorithm/fsm.py`의 `HeatSentryFsm`이 RiskIndex를
+RiskIndex는 그 자체로 상태를 정하지 않는다. `heatsentry/algorithm/fsm.py`의 `HeatSentryFsm`이 RiskIndex를
 입력으로 받아 히스테리시스·유지시간을 적용해 BASELINE/NORMAL/WARNING/COOLING(C1~C3)/EMERGENCY(C4)
 를 결정한다. 임계값 표와 근거는 [architecture.md](architecture.md)의 "상태기계" 절 참고.
 
 ## 재현성 (test_vector)
 
-ICD 표1의 `test_vector: TV-20260808-A` 원칙("결과 재현 시 고정")에 따라, `firmware/simulator/scenarios.py`의
+ICD 표1의 `test_vector: TV-20260808-A` 원칙("결과 재현 시 고정")에 따라, `heatsentry/simulator/scenarios.py`의
 모든 시나리오는 **난수를 쓰지 않는다.** 같은 입력은 항상 같은 RiskIndex 궤적을 만든다 —
 `tests/test_scenarios_integration.py`가 이 재현성 자체를 회귀 테스트로 고정해 둔다.
 

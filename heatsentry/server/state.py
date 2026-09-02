@@ -2,7 +2,7 @@
 
 SU-G(게이트웨이) 책임: "BLE 집계·저장·WebSocket·선택 LoRa". 하지 않는 일:
 "센서 원시판정 대체" — 즉 이 파일은 RiskIndex/FSM을 다시 계산하지 않고,
-firmware/simulator(손목/허리 노드)이 이미 판정해 보낸 telemetry/event를 그대로 집계·저장·
+heatsentry/simulator(손목/허리 노드)가 이미 판정해 보낸 telemetry/event를 그대로 집계·저장·
 전파하기만 한다.
 
 alerts/emergencies는 게이트웨이 자체의 "확인 여부" 장부다. HMI-001("지휘관
@@ -20,9 +20,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
-from common.hash_chain import GENESIS_HASH, append_event
-from common.schema import TelemetryV2
-from server.app.db import GatewayDB
+from heatsentry.common.hash_chain import GENESIS_HASH, append_event
+from heatsentry.common.schema import TelemetryV2
+from heatsentry.server.db import GatewayDB
 
 BroadcastFn = Callable[[dict], Awaitable[None]]
 

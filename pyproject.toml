@@ -1,0 +1,39 @@
+# 형상관리: RiskIndex/FSM 임계값은 heatsentry/algorithm/risk_config.py의
+# RISK_CONFIG_VERSION이, 패킷·스키마 버전은 heatsentry/common/__init__.py가 관리한다.
+# 이 파일은 패키지 경계와 개발 도구 설정만 담는다.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heatsentry"
+version = "2.0.0"
+description = "군 집단훈련 온열 위험 조기감지·자동냉각·안전 에스컬레이션 시스템"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.139,<0.140",
+    "starlette>=0.46,<0.47",
+    "pydantic>=2.13,<3",
+    "uvicorn>=0.49",
+    "websockets>=13.0",
+    "requests>=2.31",
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+heatsentry-demo = "heatsentry.simulator.run_demo:main"
+
+[tool.setuptools.packages.find]
+# 임베디드 펌웨어(firmware/)와 대시보드(dashboard/)는 파이썬 패키지가 아니다.
+include = ["heatsentry*"]
+
+[tool.pytest.ini_options]
+# rootdir을 import 경로에 넣어, 설치 없이도 `pytest`만으로 테스트가 돈다.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

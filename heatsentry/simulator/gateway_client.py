@@ -1,7 +1,7 @@
 """게이트웨이 /ingest/* 로 보내는 얇은 HTTP 클라이언트.
 
 실제로는 IF-04(BLE GATT)가 담당할 몫을 개발 단계에서는 HTTP POST로 대신한다
-(server/app/routes_ingest.py 참고). 연결 실패는 예외를 그대로 올리지 않고
+(heatsentry/server/routes_ingest.py 참고). 연결 실패는 예외를 그대로 올리지 않고
 GatewayUnavailable로 감싸, run_demo가 사용자에게 친절한 안내를 줄 수 있게 한다.
 """
 
@@ -30,7 +30,7 @@ class GatewayClient:
         except requests.exceptions.ConnectionError as exc:
             raise GatewayUnavailable(
                 f"게이트웨이({self.base_url})에 연결할 수 없습니다. "
-                "uvicorn server.app.main:app 을 먼저 실행하세요."
+                "uvicorn heatsentry.server.main:app 을 먼저 실행하세요."
             ) from exc
 
     def post_telemetry(self, telemetry: dict) -> dict:

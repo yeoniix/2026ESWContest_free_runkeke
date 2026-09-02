@@ -10,7 +10,7 @@ Endpoint                          방식      권한
 
 ack와 emergency/close는 둘 다 "기록"이지 장치 제어가 아니다 — HMI-001과
 p7 "금지 사항"을 지키기 위해 실제 안전 상태(FSM)는 여기서 절대 바꾸지 않는다.
-자세한 설계 의도는 server/app/state.py 상단 docstring 참고.
+자세한 설계 의도는 heatsentry/server/state.py 상단 docstring 참고.
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
-from server.app.auth import get_actor_id, require_roles
-from server.app.state import now_utc
+from heatsentry.server.auth import get_actor_id, require_roles
+from heatsentry.server.state import now_utc
 
 router = APIRouter(prefix="/api/v2", tags=["api-v2"])
 

@@ -1,4 +1,4 @@
-from common.hash_chain import GENESIS_HASH, append_event, compute_event_hash, verify_chain
+from heatsentry.common.hash_chain import GENESIS_HASH, append_event, compute_event_hash, verify_chain
 
 
 def _build_chain(n: int) -> list[dict]:

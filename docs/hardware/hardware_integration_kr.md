@@ -44,12 +44,12 @@ HeatSentry는 의료 진단 장비가 아니다. 표시되는 심박, 피부온�
 - React/Vite 실시간 관제 대시보드
 - 장치 상태 카드, 위험도 추이, 경보 확인, 응급 확인 기록, GPS 카카오맵
 - 실물 벨트의 35바이트 LoRa 패킷을 푸는 Python 디코더와 RiskIndex 어댑터
-  (`common/glove_packets.py`, `algorithm/hardware_adapter.py`, `server/app/lora_adapter.py`)
+  (`heatsentry/common/glove_packets.py`, `heatsentry/algorithm/hardware_adapter.py`, `heatsentry/server/lora_adapter.py`)
 
 ### 1.3 아직 자동으로 연결되지 않은 부분
 
 현재 저장소에는 **LoRa 전파를 실제로 수신하여 35바이트를 Python에 넘기는 베이스 수신기/시리얼
-브리지 프로그램이 없다.** `server/app/lora_adapter.py`는 수신기가 넘긴 payload를 관제
+브리지 프로그램이 없다.** `heatsentry/server/lora_adapter.py`는 수신기가 넘긴 payload를 관제
 Telemetry로 바꾸지만, USB 시리얼을 읽는 실행 프로세스는 아직 추가해야 한다.
 
 또한 현재 35바이트 LoRa 패킷에는 센서값과 플래그만 있고 다음 값이 없다.
@@ -60,7 +60,7 @@ Telemetry로 바꾸지만, USB 시리얼을 읽는 실행 프로세스는 아직
 - `risk_index`
 
 따라서 현재 패킷만으로는 벨트가 판정한 `WARNING`, `DANGER`, `HIGH_RISK`를 그대로 알 수는 없다.
-다만 `server/app/lora_adapter.py`는 수신한 실물값으로 동일한 4특징 RiskIndex를 계산해 관제용
+다만 `heatsentry/server/lora_adapter.py`는 수신한 실물값으로 동일한 4특징 RiskIndex를 계산해 관제용
 상태를 만들 수 있다. 이 문서의 12장에서 다음 두 연결 방법을 설명한다.
 
 1. 펌웨어를 바꾸지 않고 35바이트를 사용하여 원시 센서·GPS와 제한된 상태를 표시하는 방법
@@ -68,7 +68,7 @@ Telemetry로 바꾸지만, USB 시리얼을 읽는 실행 프로세스는 아직
 
 저장소의 기존 기준 문서는 시뮬레이터 기준으로 손목 노드가 RiskIndex/FSM을 계산하고 BLE 또는
 HTTP 등가 경로를 사용한다고 설명한다. 실물 최종 설계는 벨트가 상태를 계산하고 ESP-NOW+LoRa를
-사용하므로 `README.md`, `docs/architecture.md`, `firmware/api_contract.md`도 이 문서와 함께 갱신해야
+사용하므로 `README.md`, `docs/architecture.md`, `docs/api_contract.md`도 이 문서와 함께 갱신해야
 역할 설명이 충돌하지 않는다.
 
 ---
@@ -507,7 +507,7 @@ magic, version을 넣은 새 프로토콜로 교체하는 편이 좋다.
 주의할 점은 온도 조건이 기준선 완료 여부보다 먼저 검사된다는 것이다. 기준선 측정 중이라도 피부온도가
 29°C 이상이면 즉시 `WARNING` 또는 `DANGER`가 된다.
 
-현재 FSM은 GitHub `algorithm/`의 전체 RiskIndex v0.3 알고리즘을 벨트에 포팅한 것이 아니다.
+현재 FSM은 GitHub `heatsentry/algorithm/`의 전체 RiskIndex v0.3 알고리즘을 벨트에 포팅한 것이 아니다.
 현재 실물 벨트 판정은 피부온도, 손가락/BPM 유효성, 비상 버튼을 이용한 단순 MVP 로직이다. BPM,
 GSR, 환경온도는 LoRa 텔레메트리에 포함되지만 `makeDisplayStatus()`의 상태 계산에는 아직 사용되지
 않는다.
@@ -626,7 +626,7 @@ OLED는 `SSD1306 128x64`, I2C 주소 `0x3C`를 사용한다. 벨트에서 받은
 | 5 | `0x20` | 팬 ON |
 | 6~7 | — | 예약 |
 
-저장소의 `common/glove_packets.py` 디코더는 35바이트 구조를 정확히 풀지만 현재
+저장소의 `heatsentry/common/glove_packets.py` 디코더는 35바이트 구조를 정확히 풀지만 현재
 `TelemetryFlags` 열거형에는 bit 0~3만 이름이 정의돼 있다. 비상·팬을 사용하려면 다음 두 값을
 추가하거나 정수 마스크로 검사해야 한다.
 
@@ -675,7 +675,7 @@ extended_sequence = wrap_count * 65536 + new_raw
   → React 대시보드 즉시 갱신
 ```
 
-`common/glove_packets.py`는 디코더일 뿐 LoRa 라디오를 직접 읽지 않는다. 수신 보드의
+`heatsentry/common/glove_packets.py`는 디코더일 뿐 LoRa 라디오를 직접 읽지 않는다. 수신 보드의
 `OnRxDone()`은 다음 요구조건을 만족해야 한다.
 
 1. 벨트와 LoRa 설정이 완전히 같아야 한다.
@@ -699,7 +699,7 @@ RiskIndex를 계산한다. HRV와 IMU 활동량은 없는 값으로 0을 넣지 
 ```python
 import requests
 
-from server.app.lora_adapter import LoRaTelemetryAdapter
+from heatsentry.server.lora_adapter import LoRaTelemetryAdapter
 
 GATEWAY_URL = "http://127.0.0.1:8000/ingest/telemetry"
 adapter = LoRaTelemetryAdapter()
@@ -837,9 +837,9 @@ uint8_t riskIndex;   // 0~100, 계산 전/불가 255
 
 1. 벨트 `TelemetryPacket`에 네 필드를 추가하고 `version = 2`로 올린다.
 2. `static_assert(sizeof(TelemetryPacket) == 39)`로 확인한다.
-3. `common/glove_packets.py`가 version/길이에 따라 v1 35B와 v2 39B를 각각 해석하게 한다.
+3. `heatsentry/common/glove_packets.py`가 version/길이에 따라 v1 35B와 v2 39B를 각각 해석하게 한다.
 4. 브리지는 패킷의 state/cause/fan/risk를 `TelemetryV2`로 그대로 변환한다.
-5. GitHub `common/schema.py`와 `dashboard/src/types/device.ts`에 필요한 상태를 추가한다.
+5. GitHub `heatsentry/common/schema.py`와 `dashboard/src/types/device.ts`에 필요한 상태를 추가한다.
 
 현재 서버/대시보드의 상태 이름은 다음 7개만 허용한다.
 
@@ -857,10 +857,10 @@ DANGER, HIGH_RISK, SENSOR_CHECK
 
 | 파일 | 필요한 변경 |
 | --- | --- |
-| `common/schema.py` | `DeviceStateName` Literal 확장 |
+| `heatsentry/common/schema.py` | `DeviceStateName` Literal 확장 |
 | `dashboard/src/types/device.ts` | `DeviceState`, 순서, 한국어 라벨 확장 |
 | `dashboard/src/components/DeviceCard.tsx` | 상태별 카드 CSS 분류 확장 |
-| `server/app/state.py` | 어떤 상태에서 alert/emergency를 열지 정책 확정 |
+| `heatsentry/server/state.py` | 어떤 상태에서 alert/emergency를 열지 정책 확정 |
 | 테스트 | 새 상태 JSON 수용과 WebSocket 표시 검증 |
 
 반대로 저장소의 7상태 체계를 유지하려면 `DANGER/HIGH_RISK`를 `COOLING`으로, `SENSOR_CHECK`를
@@ -881,12 +881,12 @@ Content-Type: application/json
 X-HS-Device-Key: <장치 키를 설정한 경우>
 ```
 
-`server/app/routes_ingest.py`가 Pydantic `TelemetryV2`로 자료형과 범위를 검증한다. 장치 키 설정이
+`heatsentry/server/routes_ingest.py`가 Pydantic `TelemetryV2`로 자료형과 범위를 검증한다. 장치 키 설정이
 비어 있으면 개발 모드로 인증 없이 받으며, 실제 운용에서는 `HEATSENTRY_DEVICE_KEYS`를 설정한다.
 
 ### 13.2 저장과 중복 제거
 
-`server/app/state.py`의 `GatewayStore.ingest_telemetry()`가 다음을 수행한다.
+`heatsentry/server/state.py`의 `GatewayStore.ingest_telemetry()`가 다음을 수행한다.
 
 1. 같은 device_id의 마지막 sequence와 비교
 2. 새 sequence가 더 크지 않으면 `duplicate_ignored`
@@ -939,7 +939,7 @@ pip install -r server\requirements.txt
 ### 14.2 개발 모드 서버
 
 ```powershell
-uvicorn server.app.main:app --reload --port 8000
+uvicorn heatsentry.server.main:app --reload --port 8000
 ```
 
 브라우저에서 `http://127.0.0.1:8000/`을 열어 다음과 비슷한 응답을 확인한다.
@@ -953,7 +953,7 @@ uvicorn server.app.main:app --reload --port 8000
 ```powershell
 $env:HEATSENTRY_DEVICE_KEYS='{"HS-W-001":"충분히-긴-임의-비밀키"}'
 $env:HEATSENTRY_CORS_ORIGINS='http://127.0.0.1:5173,http://localhost:5173'
-uvicorn server.app.main:app --host 0.0.0.0 --port 8000
+uvicorn heatsentry.server.main:app --host 0.0.0.0 --port 8000
 ```
 
 브리지의 `X-HS-Device-Key`도 같은 키여야 한다. 키와 지도 API 키는 Git에 커밋하지 않는다.

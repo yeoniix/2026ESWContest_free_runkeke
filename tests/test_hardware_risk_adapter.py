@@ -1,9 +1,9 @@
 from dataclasses import replace
 
-from algorithm.hardware_adapter import HardwareRiskAdapter
-from algorithm.risk_config import DEFAULT_CONFIG
-from common.errors import ErrorCode
-from common.glove_packets import TELEMETRY_PACKET, decode_glove_telemetry
+from heatsentry.algorithm.hardware_adapter import HardwareRiskAdapter
+from heatsentry.algorithm.risk_config import DEFAULT_CONFIG
+from heatsentry.common.errors import ErrorCode
+from heatsentry.common.glove_packets import TELEMETRY_PACKET, decode_glove_telemetry
 
 
 HARDWARE_CONFIG = replace(

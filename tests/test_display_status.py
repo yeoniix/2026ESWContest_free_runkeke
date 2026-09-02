@@ -1,4 +1,4 @@
-from algorithm.display_status import make_display_status, select_display_cause
+from heatsentry.algorithm.display_status import make_display_status, select_display_cause
 
 
 def test_display_shows_two_physical_fan_levels():

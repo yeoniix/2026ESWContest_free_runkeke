@@ -10,10 +10,10 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 
-from algorithm.baseline import Baseline, BaselineBuilder, BaselineSample
-from algorithm.risk_config import DEFAULT_CONFIG, RiskConfig
-from algorithm.risk_engine import RiskEngine, RiskResult, SensorSample
-from common.glove_packets import GloveTelemetryPacket
+from heatsentry.algorithm.baseline import Baseline, BaselineBuilder, BaselineSample
+from heatsentry.algorithm.risk_config import DEFAULT_CONFIG, RiskConfig
+from heatsentry.algorithm.risk_engine import RiskEngine, RiskResult, SensorSample
+from heatsentry.common.glove_packets import GloveTelemetryPacket
 
 GSR_DIFF_FULL_SCALE = 300.0
 SLOPE_WINDOW_MS = 60_000

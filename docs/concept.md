@@ -34,12 +34,12 @@ HeatSentry는 다음을 조기에 탐지해 시스템이 이를 보완한다.
 
 | 폐루프 단계 | 코드 |
 | --- | --- |
-| 센서 → RiskIndex | `algorithm/risk_engine.py` |
-| RiskIndex → 상태/냉각 판정 | `algorithm/fsm.py` |
-| 냉각 명령/ACK | `common/packets.py`, `firmware/simulator/belt_node.py` |
-| 30초 재평가·미회복 에스컬레이션 | `algorithm/fsm.py`의 `HoldTimer` 기반 임계값 로직 |
+| 센서 → RiskIndex | `heatsentry/algorithm/risk_engine.py` |
+| RiskIndex → 상태/냉각 판정 | `heatsentry/algorithm/fsm.py` |
+| 냉각 명령/ACK | `heatsentry/common/packets.py`, `heatsentry/simulator/belt_node.py` |
+| 30초 재평가·미회복 에스컬레이션 | `heatsentry/algorithm/fsm.py`의 `HoldTimer` 기반 임계값 로직 |
 | SOS/응급 | `HeatSentryFsm.emergency_latched`, `close_emergency()` |
-| 감사 로그 | `common/hash_chain.py`, `server/app/state.py`, `server/app/db.py` |
+| 감사 로그 | `heatsentry/common/hash_chain.py`, `heatsentry/server/state.py`, `heatsentry/server/db.py` |
 
 ## 서브시스템
 
@@ -58,14 +58,14 @@ HeatSentry는 다음을 조기에 탐지해 시스템이 이를 보완한다.
 
 | 단계 | 목표 | 이 저장소의 대응 |
 | --- | --- | --- |
-| P0 기능증명 | 신호·팬 확인 | `firmware/simulator/`가 실제 하드웨어 없이도 동일한 신호·판정 흐름을 소프트웨어로 재현 |
-| P1 대회 MVP | 8주 폐루프 시연 | `algorithm/` + `server/` + `firmware/simulator/` + `dashboard/`로 폐루프 완성(본 커밋 기준) |
+| P0 기능증명 | 신호·팬 확인 | `heatsentry/simulator/`가 실제 하드웨어 없이도 동일한 신호·판정 흐름을 소프트웨어로 재현 |
+| P1 대회 MVP | 8주 폐루프 시연 | `heatsentry/algorithm/` + `heatsentry/server/` + `heatsentry/simulator/` + `dashboard/`로 폐루프 완성(본 커밋 기준) |
 | P2 현장 확장 | 다중 인원·장거리 | LoRa/KR920, 다중 착용자, 실물 BLE는 범위 밖(P1 이후) |
 
 ## 안전 경계 (반드시 지켜야 하는 것)
 
-1. 대시보드는 Emergency를 자동 해제할 수 없다 — `server/app/state.py`의 `close_emergency()`는 감사 기록만
-   남기고, 장치의 실제 EMERGENCY 래치(`algorithm/fsm.py`의 `emergency_latched`)는 건드리지 않는다.
+1. 대시보드는 Emergency를 자동 해제할 수 없다 — `heatsentry/server/state.py`의 `close_emergency()`는 감사 기록만
+   남기고, 장치의 실제 EMERGENCY 래치(`heatsentry/algorithm/fsm.py`의 `emergency_latched`)는 건드리지 않는다.
 2. "알림 확인"과 "응급 해제"는 다른 버튼·다른 권한이다 — `dashboard/src/components/CommandConsole.tsx`.
 3. 강제 대응(자동 냉각)은 처벌이 아니라 안전장치다. 자동 개입이 실패해도 수동 정지(`belt.press_physical_stop()`)와
    구조 절차(EMERGENCY 래치)는 항상 유지된다.

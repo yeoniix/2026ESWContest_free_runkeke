@@ -3,10 +3,10 @@
 출처: HS-SIID-002 표4 (HeatSentry GATT v2), 표5 (공통 패킷 헤더와 HS_STATUS 24B),
 COOL_CMD payload(12B), COOL_ACK payload(16B).
 
-실제 BLE 스택이 없는 개발 단계이므로, firmware/simulator는 이 모듈로 만든 바이트를 그대로
+실제 BLE 스택이 없는 개발 단계이므로, heatsentry/simulator는 이 모듈로 만든 바이트를 그대로
 게이트웨이에 보내고 게이트웨이는 이 모듈로 다시 파싱한다. 손목/허리 펌웨어를
 C/C++로 옮길 때도 바이트 레이아웃은 이 파일이 기준이 된다(펌웨어측 대응은
-firmware/api_contract.md와 firmware/protocol.h 참고).
+docs/api_contract.md와 firmware/glove_esp32/display_protocol.h 참고).
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import struct
 from dataclasses import dataclass
 from enum import IntEnum
 
-from common.crc16 import append_crc16, verify_crc16
+from heatsentry.common.crc16 import append_crc16, verify_crc16
 
 PROTOCOL_VERSION = 2
 

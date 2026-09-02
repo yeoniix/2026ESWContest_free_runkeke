@@ -1,6 +1,6 @@
 import pytest
 
-from common.packets import (
+from heatsentry.common.packets import (
     AckResult,
     BeltStatus,
     CoolAck,
@@ -57,7 +57,7 @@ def test_hs_status_protocol_version_mismatch():
     packet[0] = 99
     # protocol_version이 바뀌면 CRC도 같이 깨지므로(같은 바이트가 CRC 입력에도
     # 포함) 새 CRC를 다시 계산해 "버전만 다른" 상황을 재현한다.
-    from common.crc16 import append_crc16
+    from heatsentry.common.crc16 import append_crc16
     packet = append_crc16(bytes(packet[:22]))
     with pytest.raises(PacketError):
         HsStatus.decode(packet)

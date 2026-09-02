@@ -7,7 +7,7 @@ maintainer). 대회 MVP 단계에서는 실제 로그인·서명 체계 대신 �
 한다 (CLAUDE 주의: 이 auth.py는 프로덕션 인증이 아님).
 
 /api/v2/config PUT만은 "서명된 설정"이 명문 요구사항이라 HMAC 서명 검증을
-최소 구현해 둔다(server/app/routes_api_v2.py 참고).
+최소 구현해 둔다(heatsentry/server/routes_api_v2.py 참고).
 """
 
 from __future__ import annotations

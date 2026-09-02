@@ -1,25 +1,25 @@
 # 시연 시나리오 & 시험 벡터
 
 > 기준 문서: HS-PDD-002 v2.0 "수상형 시연 구성", "검증 계획과 증거 패키지"; HS-SIID-002 v2.0
-> "요구사항-시험 추적 매트릭스". 실행 코드: `firmware/simulator/scenarios.py`, `firmware/simulator/run_demo.py`.
+> "요구사항-시험 추적 매트릭스". 실행 코드: `heatsentry/simulator/scenarios.py`, `heatsentry/simulator/run_demo.py`.
 
 ## 지금 바로 돌려보기
 
 ```bash
 # 1) 게이트웨이
 python -m venv .venv && source .venv/bin/activate
-pip install -r server/requirements.txt
-uvicorn server.app.main:app --reload --port 8000
+pip install -r requirements.txt
+uvicorn heatsentry.server.main:app --reload --port 8000
 
 # 2) 손목+허리 노드 시뮬레이터 (다른 터미널)
-python -m firmware.simulator.run_demo --scenario T03 --fast
+python -m heatsentry.simulator.run_demo --scenario T03 --fast
 
 # 3) 대시보드 (다른 터미널)
 cd dashboard && npm install && npm run dev
 ```
 
 `--fast`는 SYS-001의 3~5분 기준선을 6~9초로 줄여 로컬에서 빨리 확인하기 위한 개발용 플래그다.
-실제 심사·시연에서는 절대 쓰지 않는다(`firmware/simulator/run_demo.py`의 `build_config()` 주석 참고).
+실제 심사·시연에서는 절대 쓰지 않는다(`heatsentry/simulator/run_demo.py`의 `build_config()` 주석 참고).
 
 ## 표12/표13 시험 벡터 ↔ simulator 시나리오
 
@@ -43,7 +43,7 @@ cd dashboard && npm install && npm run dev
 
 1. **0~20초** — preflight: 장치 ID·펌웨어·설정·배터리·센서 품질 확인, 실제 기준선 상태 표시.
    대시보드에서 `state: BASELINE` → `NORMAL` 전환을 보여준다.
-2. **20~50초** — `firmware/simulator`로 재생 데이터를 흘려 RiskIndex 상승, 손목 진동(가상)과 대시보드의
+2. **20~50초** — `heatsentry/simulator`로 재생 데이터를 흘려 RiskIndex 상승, 손목 진동(가상)과 대시보드의
    `WARNING`/`COOLING` 전환을 동시에 보여준다(`--scenario T03`).
 3. **50~80초** — 팬 전류·PWM·ACK과 30초 재평가를 한 화면(DeviceCard의 냉각 패널 + EventLog)에서
    확인한다.
@@ -57,6 +57,6 @@ cd dashboard && npm install && npm run dev
 - [ ] 필수 요구사항/시험 PASS — `pytest -q` 전체 통과
 - [ ] P0/P1 결함 0건
 - [ ] 5회 연속 시연 — `--scenario T10 --cycles 5`
-- [ ] 형상 태그·BOM·설정 보관 — `algorithm/risk_config.py`의 `RISK_CONFIG_VERSION`,
-      `common/__init__.py`의 `PROTOCOL_VERSION`/`GATEWAY_SCHEMA_VERSION`
+- [ ] 형상 태그·BOM·설정 보관 — `heatsentry/algorithm/risk_config.py`의 `RISK_CONFIG_VERSION`,
+      `heatsentry/common/__init__.py`의 `PROTOCOL_VERSION`/`GATEWAY_SCHEMA_VERSION`
 - [ ] 전력·냉각·통신 시험성적 — T05/T09(하드웨어), T04

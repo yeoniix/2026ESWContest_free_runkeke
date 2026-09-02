@@ -21,9 +21,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from algorithm.risk_config import FsmConfig, DEFAULT_CONFIG
-from algorithm.risk_engine import RiskResult
-from common.packets import CoolReason, DeviceState
+from heatsentry.algorithm.risk_config import FsmConfig, DEFAULT_CONFIG
+from heatsentry.algorithm.risk_engine import RiskResult
+from heatsentry.common.packets import CoolReason, DeviceState
 
 
 class HoldTimer:

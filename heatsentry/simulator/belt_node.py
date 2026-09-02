@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from common.errors import ErrorCode, FAN_SAFETY_LEVEL, FAN_SAFETY_TIMER_S
-from common.packets import AckResult, CoolAck, CoolCmd
+from heatsentry.common.errors import ErrorCode, FAN_SAFETY_LEVEL, FAN_SAFETY_TIMER_S
+from heatsentry.common.packets import AckResult, CoolAck, CoolCmd
 
 
 @dataclass

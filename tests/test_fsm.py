@@ -1,7 +1,7 @@
-from algorithm.fsm import HeatSentryFsm, ManualInputs
-from algorithm.risk_config import DEFAULT_CONFIG, CoolingStageConfig, FsmConfig
-from algorithm.risk_engine import RiskResult
-from common.packets import CoolReason, DeviceState
+from heatsentry.algorithm.fsm import HeatSentryFsm, ManualInputs
+from heatsentry.algorithm.risk_config import DEFAULT_CONFIG, CoolingStageConfig, FsmConfig
+from heatsentry.algorithm.risk_engine import RiskResult
+from heatsentry.common.packets import CoolReason, DeviceState
 
 
 def _risk(index: int, hard_trigger: bool = False) -> RiskResult:

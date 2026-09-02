@@ -1,7 +1,7 @@
 # 펌웨어 인터페이스 계약 (ICD 요약)
 
 > 기준 문서: HS-SIID-002 v2.0. 이 문서는 손목(SU-W)/허리(SU-B) 펌웨어를 실제로 작성할 때 참고할
-> "계약" 요약본이다. 바이트 단위 정의의 1차 소스는 `common/packets.py`이며, 이 문서와 코드가
+> "계약" 요약본이다. 바이트 단위 정의의 1차 소스는 `heatsentry/common/packets.py`이며, 이 문서와 코드가
 > 어긋나면 **코드가 아니라 이 문서를 고친다** (인터페이스는 먼저 동결하고 구현은 교체 가능하게
 > 한다는 통합 원칙).
 
@@ -9,16 +9,16 @@
 
 | 항목 | 기준 | 이 저장소 위치 |
 | --- | --- | --- |
-| protocol_version | 2 | `common/PROTOCOL_VERSION`, `common/packets.py` |
-| risk_config_version | 0.3.0 | `algorithm/risk_config.py`의 `RISK_CONFIG_VERSION` |
-| gateway_schema | 2.0 | `common/GATEWAY_SCHEMA_VERSION`, `common/schema.py` |
-| test_vector | TV-20260808-A | `firmware/simulator/scenarios.py` (결정적 재생, 난수 없음) |
+| protocol_version | 2 | `heatsentry/common/PROTOCOL_VERSION`, `heatsentry/common/packets.py` |
+| risk_config_version | 0.3.0 | `heatsentry/algorithm/risk_config.py`의 `RISK_CONFIG_VERSION` |
+| gateway_schema | 2.0 | `heatsentry/common/GATEWAY_SCHEMA_VERSION`, `heatsentry/common/schema.py` |
+| test_vector | TV-20260808-A | `heatsentry/simulator/scenarios.py` (결정적 재생, 난수 없음) |
 
 ## 인터페이스 목록
 
 | IF | 송신→수신 | 방식(문서) | 지금 구현 |
 | --- | --- | --- | --- |
-| IF-01 | 손목 센서→RiskTask | 로컬 큐, 10~1000ms | `firmware/simulator/wrist_node.py`의 `WristNode.tick()` (1Hz) |
+| IF-01 | 손목 센서→RiskTask | 로컬 큐, 10~1000ms | `heatsentry/simulator/wrist_node.py`의 `WristNode.tick()` (1Hz) |
 | IF-02 | 손목→허리 | BLE GATT, 명령 즉시 | `WristNode._send_cool_cmd()` → `BeltNode.handle_cmd()` |
 | IF-03 | 허리→손목 | BLE Notify, 1s/이벤트 | `CoolAck` 반환값(동기 호출) |
 | IF-04 | 노드→게이트웨이 | BLE GATT, 1s/이벤트 | `POST /ingest/telemetry`·`/ingest/event`·`/ingest/command_ack` |
@@ -42,7 +42,7 @@ GATT characteristic payload로 쓰면 된다.
 | COOL_ACK | B→W | Notify | 16B | `common.packets.CoolAck` |
 | BELT_STATUS | B→W/G | Notify | 20B | `common.packets.BeltStatus` (초안, 아래 참고) |
 | SOS_EVENT | W/B→G | Indicate | 24B | 미구현 — CR 필요 |
-| CONFIG | G→W/B | Write | 가변 | `PUT /api/v2/config` (HMAC 서명, `server/app/routes_api_v2.py`) |
+| CONFIG | G→W/B | Write | 가변 | `PUT /api/v2/config` (HMAC 서명, `heatsentry/server/routes_api_v2.py`) |
 
 ### 바이트 레이아웃
 
@@ -50,7 +50,7 @@ GATT characteristic payload로 쓰면 된다.
 
 하드웨어 팀의 현재 구현은 `TelemetryPacket` packed 구조체를 LoRa로 보낸다. ESP32는
 little-endian이므로 서버/게이트웨이 디코더도 같은 순서(`<HBBHBhHhIhHiiBhHB`)를 쓴다.
-디코더 구현은 `common/glove_packets.py`에 있다.
+디코더 구현은 `heatsentry/common/glove_packets.py`에 있다.
 
 | flags bit | 의미 |
 | --- | --- |
@@ -65,11 +65,11 @@ little-endian이므로 서버/게이트웨이 디코더도 같은 순서(`<HBBHB
 `SENSOR CHECK / WEAR GLOVE` 상태로 처리한다. 이 LoRa payload는 현장 하드웨어
 중간 형식이며, 게이트웨이 API의 `TelemetryV2`와는 별개다.
 
-현재 ESP32 패킷에는 HRV와 IMU 활동량이 없으므로 `algorithm/hardware_adapter.py`는
+현재 ESP32 패킷에는 HRV와 IMU 활동량이 없으므로 `heatsentry/algorithm/hardware_adapter.py`는
 HR·피부온도 상승률·GSR 변화·온습도 환경열부하 4개 특징만 사용한다. 없는 두 특징은
 0으로 넣지 않고 가중치에서 제외한 뒤 남은 0.75 가중치로 재정규화한다.
 
-**공통 헤더 + HS_STATUS (24B)** — `common/packets.py`의 `HsStatus`:
+**공통 헤더 + HS_STATUS (24B)** — `heatsentry/common/packets.py`의 `HsStatus`:
 
 ```
 0      protocol_version u8      = 2
@@ -134,18 +134,18 @@ HR·피부온도 상승률·GSR 변화·온습도 환경열부하 4개 특징만
 **SOS_EVENT (24B)** — 아직 코드로 구현하지 않았다. ICD는 "원인·위치상태·seq"만 명시한다.
 현재는 EMERGENCY 상태 전이가 `HS_STATUS`의 `flags` bit1(SOS)과 `state=EMERGENCY`로 이미
 전달되므로 기능적으로는 대체되지만, Indicate 방식의 별도 긴급 채널이 필요하면 CR로 필드를
-확정한 뒤 `common/packets.py`에 추가한다.
+확정한 뒤 `heatsentry/common/packets.py`에 추가한다.
 
 ## 연결·재전송 정책
 
 1. COOL_CMD는 `cmd_id`+`sequence`를 포함하고, 500ms 이내 ACK 없으면 최대 3회 재전송한다.
-   구현: `firmware/simulator/wrist_node.py`의 `WristNode._send_cool_cmd()` (`RawTick.drop_ack_attempts`로
+   구현: `heatsentry/simulator/wrist_node.py`의 `WristNode._send_cool_cmd()` (`RawTick.drop_ack_attempts`로
    시험 가능).
 2. 동일 `cmd_id` 재수신 시 허리는 팬을 재시작하지 않고 현재 결과만 ACK한다(idempotent).
-   구현: `firmware/simulator/belt_node.py`의 `BeltNode._processed_cmds` 캐시.
+   구현: `heatsentry/simulator/belt_node.py`의 `BeltNode._processed_cmds` 캐시.
 3. 상태 Notify는 손실 허용, Emergency는 Indicate 또는 애플리케이션 ACK을 쓴다.
 4. 연결 손실 10초에서 COMMS_LOST(E201), 60초에서 팬 안전 타이머(50%로 하향) — 구현:
-   `firmware/simulator/belt_node.py`의 `BeltNode.tick()`, 상수는 `common/errors.py`의
+   `heatsentry/simulator/belt_node.py`의 `BeltNode.tick()`, 상수는 `heatsentry/common/errors.py`의
    `BLE_COMMS_LOST_S`/`FAN_SAFETY_TIMER_S`/`FAN_SAFETY_LEVEL`.
 
 ## 통합 오류코드
@@ -163,22 +163,22 @@ HR·피부온도 상승률·GSR 변화·온습도 환경열부하 4개 특징만
 | E303 | 접촉부 저온 | 팬 OFF·PCM 분리 안내 | 안전 알림 | — |
 | E401 | 로그 저장 실패 | RAM 큐·재시도 | 무결성 경고 | — |
 
-전체 정의: `common/errors.py`의 `ERROR_TABLE`.
+전체 정의: `heatsentry/common/errors.py`의 `ERROR_TABLE`.
 
 ## 저하 모드 원칙
 
-1. `valid_weight >= 0.60`이면 가중치를 재정규화해 운용한다(`algorithm/risk_engine.py`).
+1. `valid_weight >= 0.60`이면 가중치를 재정규화해 운용한다(`heatsentry/algorithm/risk_engine.py`).
 2. IMU가 없으면 낙상 검출을 끄고 기능 제한을 표시한다(E104).
-3. 게이트웨이가 없어도 손목↔허리 자동 냉각·로컬 경고는 유지된다 — `firmware/simulator/wrist_node.py`와
+3. 게이트웨이가 없어도 손목↔허리 자동 냉각·로컬 경고는 유지된다 — `heatsentry/simulator/wrist_node.py`와
    `belt_node.py`는 게이트웨이 연결 여부와 무관하게 판정·안전 로직을 수행한다(전송만 별도).
 4. 장거리 브리지(LoRa/KR920)가 없는 것은 전체 시스템 장애가 아니다 — IF-07은 애초에 P1 범위 밖.
 
 ## 호환성 규칙
 
-- 수신 장치는 `protocol_version`과 `payload_len`을 먼저 확인한다(`common/packets.py`의
+- 수신 장치는 `protocol_version`과 `payload_len`을 먼저 확인한다(`heatsentry/common/packets.py`의
   `_check_common_header`).
 - 알 수 없는 `msg_type`은 무시하고 `UNSUPPORTED_MESSAGE` 이벤트를 남긴다 — 현재
-  `common/packets.py`는 알려진 타입만 디코드하며, 게이트웨이 쪽에서 알 수 없는 메시지를 받으면
+  `heatsentry/common/packets.py`는 알려진 타입만 디코드하며, 게이트웨이 쪽에서 알 수 없는 메시지를 받으면
   `PacketError`가 발생한다. 실제 펌웨어에서는 예외 대신 이벤트 로깅 후 무시하도록 구현해야 한다
   (P1 TODO).
 - `protocol_version` 또는 `risk_config_version`이 오르면 CR에 반드시 명시한다

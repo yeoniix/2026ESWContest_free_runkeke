@@ -16,12 +16,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from algorithm.baseline import Baseline, BaselineBuilder, BaselineSample
-from algorithm.display_status import make_display_status, select_display_cause
-from algorithm.fsm import HeatSentryFsm, ManualInputs
-from algorithm.risk_config import RiskConfig, DEFAULT_CONFIG
-from algorithm.risk_engine import RiskEngine, SensorSample
-from common.packets import CoolCmd, CoolReason, DeviceState
+from heatsentry.algorithm.baseline import Baseline, BaselineBuilder, BaselineSample
+from heatsentry.algorithm.display_status import make_display_status, select_display_cause
+from heatsentry.algorithm.fsm import HeatSentryFsm, ManualInputs
+from heatsentry.algorithm.risk_config import RiskConfig, DEFAULT_CONFIG
+from heatsentry.algorithm.risk_engine import RiskEngine, SensorSample
+from heatsentry.common.packets import CoolCmd, CoolReason, DeviceState
 from .belt_node import BeltNode
 
 # 문서에 정확한 규칙이 없어 통합팀이 정할 자리(설계 기본값): 활동 라벨 경계.
@@ -30,7 +30,7 @@ _ACTIVITY_THRESHOLDS = (0.15, "REST"), (0.4, "WALK"), (0.75, "RUN")
 
 @dataclass
 class RawTick:
-    """시나리오 생성기가 매 초 만드는 원시 입력. firmware/simulator/scenarios.py 참고."""
+    """시나리오 생성기가 매 초 만드는 원시 입력. heatsentry/simulator/scenarios.py 참고."""
 
     hr_bpm: float
     hrv_rmssd: float

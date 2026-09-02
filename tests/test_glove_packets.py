@@ -1,4 +1,4 @@
-from common.glove_packets import TELEMETRY_PACKET, TelemetryFlags, decode_glove_telemetry
+from heatsentry.common.glove_packets import TELEMETRY_PACKET, TelemetryFlags, decode_glove_telemetry
 
 
 def test_decode_hardware_telemetry_packet():

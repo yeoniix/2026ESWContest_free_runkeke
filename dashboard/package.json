@@ -1,7 +1,7 @@
 {
-  "name": "dashboard",
+  "name": "heatsentry-dashboard",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -27,5 +27,6 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.62.0",
     "vite": "^8.1.1"
-  }
+  },
+  "description": "HeatSentry TAC 관제 대시보드 (REST v2 + WebSocket)"
 }

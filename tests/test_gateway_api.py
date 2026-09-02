@@ -5,7 +5,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from server.app.main import app
+from heatsentry.server.main import app
 
 TELEMETRY = {
     "schema_version": "2.0",
@@ -136,7 +136,7 @@ def test_config_update_requires_valid_signature(client):
 
 
 def test_tamper_detected_via_verify_chain(client):
-    from common.hash_chain import verify_chain
+    from heatsentry.common.hash_chain import verify_chain
 
     client.post("/ingest/telemetry", json=TELEMETRY)
     client.post("/ingest/telemetry", json={**TELEMETRY, "state": "WARNING", "sequence": 2})

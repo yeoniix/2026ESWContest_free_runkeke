@@ -5,9 +5,9 @@ HS-SIID-002/HS-PDD-002 v2.0 기준선에 맞춰 손목(SU-W)+허리(SU-B) 폐루
 재생하고, 그 결과를 게이트웨이(server)에 실제로 HTTP POST로 흘려보낸다.
 
 사용 예:
-    # 게이트웨이가 켜져 있어야 한다: uvicorn server.app.main:app --port 8000
-    python -m firmware.simulator.run_demo --scenario T03
-    python -m firmware.simulator.run_demo --scenario T08 --fast --sleep 0
+    # 게이트웨이가 켜져 있어야 한다: uvicorn heatsentry.server.main:app --port 8000
+    python -m heatsentry.simulator.run_demo --scenario T03
+    python -m heatsentry.simulator.run_demo --scenario T08 --fast --sleep 0
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import dataclasses
 import sys
 import time
 
-from algorithm.risk_config import DEFAULT_CONFIG, RiskConfig
+from heatsentry.algorithm.risk_config import DEFAULT_CONFIG, RiskConfig
 from .belt_node import BeltNode
 from .gateway_client import GatewayClient, GatewayUnavailable
 from .scenarios import SCENARIOS

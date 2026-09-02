@@ -3,9 +3,9 @@
 
 import dataclasses
 
-from algorithm.risk_config import DEFAULT_CONFIG
-from firmware.simulator.belt_node import BeltNode
-from firmware.simulator.scenarios import (
+from heatsentry.algorithm.risk_config import DEFAULT_CONFIG
+from heatsentry.simulator.belt_node import BeltNode
+from heatsentry.simulator.scenarios import (
     t01_baseline_stability,
     t03_risk_rise,
     t04_ack_loss,
@@ -14,7 +14,7 @@ from firmware.simulator.scenarios import (
     t07_unrecovered,
     t08_fall_emergency,
 )
-from firmware.simulator.wrist_node import WristNode
+from heatsentry.simulator.wrist_node import WristNode
 
 FAST_CONFIG = dataclasses.replace(
     DEFAULT_CONFIG,

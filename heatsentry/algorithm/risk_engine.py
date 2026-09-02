@@ -15,9 +15,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from algorithm.baseline import Baseline
-from algorithm.risk_config import RiskConfig, DEFAULT_CONFIG
-from common.errors import ErrorCode
+from heatsentry.algorithm.baseline import Baseline
+from heatsentry.algorithm.risk_config import RiskConfig, DEFAULT_CONFIG
+from heatsentry.common.errors import ErrorCode
 
 # 특징 정규화 포화 상수 — 문서에 정확한 값이 없어 통합팀이 정할 자리(설계 기본값).
 HR_DEV_SATURATION_STD = 4.0  # 개인 기준 심박 표준편차의 몇 배에서 feature=1.0

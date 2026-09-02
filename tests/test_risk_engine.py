@@ -1,6 +1,6 @@
-from algorithm.baseline import Baseline
-from algorithm.risk_engine import RiskEngine, SensorSample
-from common.errors import ErrorCode
+from heatsentry.algorithm.baseline import Baseline
+from heatsentry.algorithm.risk_engine import RiskEngine, SensorSample
+from heatsentry.common.errors import ErrorCode
 
 BASELINE = Baseline(
     hr_median=100, hr_mad=5, hrv_median=45, skin_temp_median=36.0, eda_median=0.1, sample_count=180

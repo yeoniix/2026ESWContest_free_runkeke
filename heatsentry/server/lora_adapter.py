@@ -11,11 +11,11 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from algorithm.hardware_adapter import HardwareRiskAdapter
-from algorithm.risk_config import DEFAULT_CONFIG, RiskConfig
-from algorithm.fsm import HeatSentryFsm, ManualInputs
-from common.glove_packets import GloveTelemetryPacket, decode_glove_telemetry
-from common.schema import TelemetryV2
+from heatsentry.algorithm.hardware_adapter import HardwareRiskAdapter
+from heatsentry.algorithm.risk_config import DEFAULT_CONFIG, RiskConfig
+from heatsentry.algorithm.fsm import HeatSentryFsm, ManualInputs
+from heatsentry.common.glove_packets import GloveTelemetryPacket, decode_glove_telemetry
+from heatsentry.common.schema import TelemetryV2
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
