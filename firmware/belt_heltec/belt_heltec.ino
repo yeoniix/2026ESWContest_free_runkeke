@@ -40,19 +40,20 @@ unsigned long lastButtonPressTime = 0;
 bool    fansOn        = false;
 uint8_t currentFanPct = 0;
 
-void setFanPercent(uint8_t pct) {
-  uint8_t duty = (uint8_t)((uint32_t)pct * 255 / 100);
-  ledcWrite(FAN1_PIN, duty);
-  ledcWrite(FAN2_PIN, duty);
+// pct1 = FAN1, pct2 = FAN2 (0~100 각각)
+void setFanPins(uint8_t pct1, uint8_t pct2) {
+  ledcWrite(FAN1_PIN, (uint32_t)pct1 * 255 / 100);
+  ledcWrite(FAN2_PIN, (uint32_t)pct2 * 255 / 100);
+  uint8_t newPct = max(pct1, pct2);
   bool wasOn = (currentFanPct > 0);
-  bool nowOn = (pct > 0);
+  bool nowOn = (newPct > 0);
   if (nowOn != wasOn) {
     Serial.println(nowOn ? "=== FAN ON ===" : "=== FAN OFF ===");
-  } else if (nowOn && pct != currentFanPct) {
-    Serial.printf("=== FAN %d%% ===\n", pct);
+  } else if (nowOn && newPct != currentFanPct) {
+    Serial.printf("=== FAN1=%d%% FAN2=%d%% ===\n", pct1, pct2);
   }
-  currentFanPct = pct;
-  fansOn        = (pct > 0);
+  currentFanPct = newPct;
+  fansOn        = nowOn;
 }
 
 // =====================================================
@@ -282,7 +283,7 @@ void makeDisplayStatus() {
   displayData.seq     = displaySequence++;
 
   bool gloveValid = gloveDataReceived &&
-                    (millis() - lastGloveReceiveTime < 5000);
+                    (millis() - lastGloveReceiveTime < 10000);
 
   // 글로브 정보 기입
   if (gloveValid) {
@@ -299,7 +300,7 @@ void makeDisplayStatus() {
 
   // ── 1. 수동 SOS ──────────────────────────────────
   if (emergencyActive) {
-    setFanPercent(100);
+    setFanPins(100, 100);
     displayData.state      = STATE_EMERGENCY;
     displayData.cause      = CAUSE_NONE;
     displayData.fanPercent = 100;
@@ -309,7 +310,7 @@ void makeDisplayStatus() {
 
   // ── 2. 센서 없음 ─────────────────────────────────
   if (!gloveValid || !gloveData.finger || gloveData.bpm <= 0) {
-    setFanPercent(0);
+    setFanPins(0, 0);
     displayData.state = STATE_SENSOR_CHECK;
     displayData.cause = CAUSE_SENSOR;
     // 장갑 떼면 베이스라인 초기화
@@ -346,7 +347,7 @@ void makeDisplayStatus() {
     baselineTemp = (float)(baselineTempSum / baselineSampleCnt);
     baselineGSR  = (int)  (baselineGSRSum  / baselineSampleCnt);
 
-    setFanPercent(0);
+    setFanPins(0, 0);
     displayData.state = STATE_BASELINE;
     displayData.cause = CAUSE_NONE;
     return;
@@ -370,21 +371,28 @@ void makeDisplayStatus() {
 
   // ── 6. FSM ────────────────────────────────────────
   uint8_t newState;
-  uint8_t fanPct;
+  uint8_t fan1Pct, fan2Pct;
 
   if (risk < 40) {
-    newState = STATE_NORMAL;    fanPct = 0;
+    newState = STATE_NORMAL;
+    fan1Pct = 0;   fan2Pct = 0;
   } else if (risk < 60) {
-    newState = STATE_CAUTION;   fanPct = 0;
+    newState = STATE_CAUTION;
+    fan1Pct = 0;   fan2Pct = 0;
   } else if (risk < 85) {
+    // COOLING_50 : FAN1 100% 1개만, FAN2 OFF
     newState = held10s ? STATE_COOLING_50 : STATE_CAUTION;
-    fanPct   = held10s ? 50 : 0;
+    fan1Pct  = held10s ? 100 : 0;
+    fan2Pct  = 0;
   } else {
+    // DANGER : 두 팬 100%
     newState = held10s ? STATE_DANGER : STATE_CAUTION;
-    fanPct   = held10s ? 100 : 0;
+    fan1Pct  = held10s ? 100 : 0;
+    fan2Pct  = held10s ? 100 : 0;
   }
 
-  setFanPercent(fanPct);
+  uint8_t fanPct = max(fan1Pct, fan2Pct);
+  setFanPins(fan1Pct, fan2Pct);
   displayData.state      = newState;
   displayData.cause      = (newState >= STATE_CAUTION)
                            ? determineCause() : CAUSE_NONE;
@@ -415,7 +423,7 @@ void makeTelemetryPacket() {
   uint8_t flags = 0;
 
   bool gloveValid = gloveDataReceived &&
-                    (millis() - lastGloveReceiveTime < 5000);
+                    (millis() - lastGloveReceiveTime < 10000);
 
   if (gloveValid) {
     flags               |= (1 << 0);
@@ -561,7 +569,7 @@ void setup() {
   // FAN LEDC PWM (Core 3.x)
   ledcAttach(FAN1_PIN, FAN_FREQ, FAN_BITS);
   ledcAttach(FAN2_PIN, FAN_FREQ, FAN_BITS);
-  setFanPercent(0);
+  setFanPins(0, 0);
   Serial.println("[OK] FAN PWM  GPIO6(CH0) / GPIO47(CH1)");
 
   // GPS
