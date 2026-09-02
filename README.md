@@ -57,7 +57,8 @@ heatsentry/          파이썬 패키지 (pip install -e . 로 설치 가능)
 
 firmware/            임베디드 C/C++ 만
 ├─ glove_esp32/      장갑 ESP32 스케치 + OLED 표시 프로토콜 헤더
-└─ belt_heltec/      벨트 Heltec LoRa 스케치 + 로컬 상태기계 헤더
+├─ belt_heltec/      벨트 Heltec LoRa 스케치 + 로컬 상태기계 헤더
+└─ lora_get/         LoRa 수신기 스케치 (35B TelemetryPacket을 시리얼로 넘긴다)
 
 dashboard/           React + TypeScript 관제 대시보드 (REST v2 + WebSocket)
 docs/                제품 개념·아키텍처·알고리즘·통신 계약·시연 시나리오·데이터 설계·하드웨어 문서
