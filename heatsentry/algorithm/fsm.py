@@ -181,7 +181,7 @@ class HeatSentryFsm:
         elif self.stage != "C0":
             device_state = DeviceState.COOLING
         elif self.warning_active:
-            device_state = DeviceState.WARNING
+            device_state = DeviceState.CAUTION
         else:
             device_state = DeviceState.NORMAL
 
