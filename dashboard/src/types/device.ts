@@ -1,30 +1,27 @@
-// HS-SIID-002 p6 "게이트웨이 데이터 계약"(schema_version 2.0)과 1:1로 대응한다.
-// 옛 GPS 분대 관제용 Soldier 타입(soldier_id/risk_level/GPS 좌표 등)은
-// HS-SIID-002/HS-PDD-002 v2.0 기준선으로 완전히 대체됐다.
+// HeatSentry dashboard data contract.
+//
+// Unified DeviceState:
+// BOOT / BASELINE / NORMAL / CAUTION / COOLING / EMERGENCY / SENSOR_CHECK
+//
+// CoolingStage is telemetry.cooling.requested:
+// 0=C0, 1=C1, 2=C2, 3=C3, 4=C4
 
 export type DeviceState =
   | "BOOT"
   | "BASELINE"
   | "NORMAL"
-  | "WARNING"
+  | "CAUTION"
   | "COOLING"
   | "EMERGENCY"
-  | "FAULT";
-
-export type ActivityLabel = "REST" | "WALK" | "RUN" | "CRAWL" | "STATIC" | "UNKNOWN";
-
-// 벨트 펌웨어(firmware/belt_heltec)가 자체 임계값으로 내린 판정.
-// 게이트웨이의 RiskIndex v0.3 판정(DeviceState)과는 기준이 다르다 —
-// 현장에서 팬을 돌리고 장갑 OLED에 뜬 것은 이쪽 값이다.
-export type BeltState =
-  | "BOOT"
-  | "BASELINE"
-  | "NORMAL"
-  | "CAUTION"
-  | "COOLING_50"
-  | "DANGER"
-  | "EMERGENCY"
   | "SENSOR_CHECK";
+
+export type ActivityLabel =
+  | "REST"
+  | "WALK"
+  | "RUN"
+  | "CRAWL"
+  | "STATIC"
+  | "UNKNOWN";
 
 export type BeltCause =
   | "NONE"
@@ -50,7 +47,7 @@ export interface SignalsV2 {
 }
 
 export interface CoolingV2 {
-  requested: number; // 0~4, C0~C4
+  requested: number; // 0~4 => C0~C4
   actual_pwm: number; // 0~100
   current_ma: number;
 }
@@ -59,15 +56,21 @@ export interface RawGloveV2 {
   gsr: number | null;
   gsr_diff: number | null;
   ir: number | null;
+
   air_temp_c: number | null;
   humidity_percent: number | null;
+
   finger_detected: boolean | null;
   glove_data: boolean | null;
   dht_data: boolean | null;
+
   gps_fix: boolean | null;
   latitude: number | null;
   longitude: number | null;
-  belt_state: BeltState | null;
+
+  // Belt and top-level state now use the exact same 7-state vocabulary.
+  belt_state: DeviceState | null;
+
   belt_cause: BeltCause | null;
   belt_fan_on: boolean | null;
 }
@@ -82,16 +85,22 @@ export interface TelemetryV2 {
   gateway_utc: string;
   device_id: string;
   monotonic_ms: number;
+
   state: DeviceState;
+
   risk_index: number; // 0~100, 255=invalid
   valid_weight: number;
+
   quality: QualityV2;
   signals: SignalsV2;
   cooling: CoolingV2;
+
   contributions: Record<string, number>;
   active_errors: string[];
+
   raw?: RawGloveV2 | null;
   radio?: RadioLinkV2 | null;
+
   config_version: string;
   sequence: number;
 }
@@ -140,41 +149,39 @@ export interface EmergencyRecord {
   close_reason: string | null;
 }
 
-// 표6 "로컬 API v2" 권한 컬럼과 동일.
-export type Role = "observer" | "commander" | "tester" | "maintainer";
+export type Role =
+  | "observer"
+  | "commander"
+  | "tester"
+  | "maintainer";
 
 export const STATE_ORDER: DeviceState[] = [
   "BOOT",
   "BASELINE",
   "NORMAL",
-  "WARNING",
+  "CAUTION",
   "COOLING",
   "EMERGENCY",
-  "FAULT",
+  "SENSOR_CHECK",
 ];
 
-export const STATE_LABEL_KO: Record<DeviceState, string> = {
-  BOOT: "부팅",
-  BASELINE: "기준선 측정",
-  NORMAL: "정상",
-  WARNING: "경고",
-  COOLING: "냉각 중",
-  EMERGENCY: "응급",
-  FAULT: "고장",
-};
-
-export const BELT_STATE_LABEL_KO: Record<BeltState, string> = {
+export const STATE_LABEL_KO: Record<
+  DeviceState,
+  string
+> = {
   BOOT: "부팅",
   BASELINE: "기준선 측정",
   NORMAL: "정상",
   CAUTION: "주의",
-  COOLING_50: "냉각 50%",
-  DANGER: "위험 · 냉각 100%",
+  COOLING: "냉각",
   EMERGENCY: "응급",
   SENSOR_CHECK: "센서 확인",
 };
 
-export const BELT_CAUSE_LABEL_KO: Record<BeltCause, string> = {
+export const BELT_CAUSE_LABEL_KO: Record<
+  BeltCause,
+  string
+> = {
   NONE: "특이사항 없음",
   HR_HIGH: "심박 상승",
   HR_CHANGE: "심박 변동",
@@ -185,7 +192,10 @@ export const BELT_CAUSE_LABEL_KO: Record<BeltCause, string> = {
   SENSOR: "센서 접촉 불량",
 };
 
-export const ACTIVITY_LABEL_KO: Record<ActivityLabel, string> = {
+export const ACTIVITY_LABEL_KO: Record<
+  ActivityLabel,
+  string
+> = {
   REST: "휴식",
   WALK: "저강도 이동",
   RUN: "고강도 이동",
@@ -193,3 +203,58 @@ export const ACTIVITY_LABEL_KO: Record<ActivityLabel, string> = {
   STATIC: "정지(무동작)",
   UNKNOWN: "알 수 없음",
 };
+
+export function coolingStageLabel(
+  requested: number,
+): string {
+  const stage = Math.max(
+    0,
+    Math.min(
+      4,
+      Math.trunc(requested),
+    ),
+  );
+
+  return `C${stage}`;
+}
+
+export function deviceDisplayLabel(
+  telemetry: TelemetryV2,
+): string {
+  const stage = telemetry.cooling.requested;
+
+  if (
+    telemetry.state === "EMERGENCY"
+    || stage === 4
+  ) {
+    return "응급";
+  }
+
+  if (
+    telemetry.state === "SENSOR_CHECK"
+  ) {
+    return "센서 확인";
+  }
+
+  if (
+    telemetry.state === "COOLING"
+  ) {
+    if (stage === 3) {
+      return "고위험 · 냉각 100%";
+    }
+
+    if (stage === 2) {
+      return "위험 · 냉각 100%";
+    }
+
+    if (stage === 1) {
+      return "냉각 50%";
+    }
+
+    return "냉각";
+  }
+
+  return STATE_LABEL_KO[
+    telemetry.state
+  ];
+}
