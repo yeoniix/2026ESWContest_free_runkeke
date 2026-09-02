@@ -137,9 +137,11 @@ bool beltStatusFresh() {
 
 bool beltAlertActive() {
   if (!beltStatusFresh()) return false;
-  // CAUTION 이상 EMERGENCY 이하
-  return beltDisplayData.state >= STATE_CAUTION &&
-         beltDisplayData.state <= STATE_EMERGENCY;
+
+  return
+    beltDisplayData.state == STATE_CAUTION ||
+    beltDisplayData.state == STATE_COOLING ||
+    beltDisplayData.state == STATE_EMERGENCY;
 }
 
 // ===================== ESP-NOW 수신 (벨트 → 손목) =====================
@@ -186,23 +188,33 @@ void updateDisplay() {
   display.setTextColor(SSD1306_WHITE);
   display.setTextWrap(false);
 
-  // 벨트 연결 끊김
   if (!beltStatusFresh()) {
     display.setTextSize(2);
     display.setCursor(0, 5);
     display.println("LINK LOST");
+
     display.setTextSize(1);
     display.setCursor(0, 38);
     display.println("CHECK BELT");
+
     display.setCursor(0, 52);
     display.println("ESP-NOW WAIT");
+
     display.display();
     return;
   }
 
-  float temp = beltDisplayData.skinTemp_x100 / 100.0f;
+  float temp =
+    beltDisplayData.skinTemp_x100 / 100.0f;
 
-  // ── 1줄: 상태 이름 ──────────────────────────────
+  uint8_t coolingStage =
+    displayGetCoolingStage(
+      beltDisplayData.flags
+    );
+
+  // ---------------------------------------------------
+  // line 1
+  // ---------------------------------------------------
   display.setTextSize(2);
   display.setCursor(0, 4);
 
@@ -210,35 +222,49 @@ void updateDisplay() {
     case STATE_BOOT:
       display.println("BOOT");
       break;
+
     case STATE_BASELINE:
       display.println("BASELINE");
       break;
+
     case STATE_NORMAL:
       display.println("NORMAL");
       break;
+
     case STATE_CAUTION:
       display.println("CAUTION");
       break;
-    case STATE_COOLING_50:
-      display.println("COOLING");
+
+    case STATE_COOLING:
+      if (coolingStage == COOLING_C3) {
+        display.println("HIGH RISK");
+      }
+      else if (coolingStage == COOLING_C2) {
+        display.println("DANGER");
+      }
+      else {
+        display.println("COOLING");
+      }
       break;
-    case STATE_DANGER:
-      display.println("DANGER");
-      break;
+
     case STATE_EMERGENCY:
       display.println("EMERGENCY");
       break;
+
     case STATE_SENSOR_CHECK:
       display.setTextSize(1);
       display.setCursor(0, 9);
       display.println("SENSOR CHECK");
       break;
+
     default:
       display.println("UNKNOWN");
       break;
   }
 
-  // ── 2줄: 원인 / 행동 ────────────────────────────
+  // ---------------------------------------------------
+  // line 2
+  // ---------------------------------------------------
   display.setTextSize(1);
   display.setCursor(0, 36);
 
@@ -246,9 +272,11 @@ void updateDisplay() {
     case STATE_BOOT:
       display.println("STARTING");
       break;
+
     case STATE_BASELINE:
       display.println("STAY STILL");
       break;
+
     case STATE_NORMAL:
       display.print("HR ");
       display.print(beltDisplayData.bpm);
@@ -256,23 +284,38 @@ void updateDisplay() {
       display.print(temp, 1);
       display.println("C");
       break;
+
     case STATE_CAUTION:
-      display.println(displayCauseText(beltDisplayData.cause));
+      display.println(
+        displayCauseText(
+          beltDisplayData.cause
+        )
+      );
       break;
-    case STATE_COOLING_50:
-      display.print("FAN 50% ");
-      display.println(displayCauseText(beltDisplayData.cause));
+
+    case STATE_COOLING:
+      if (coolingStage == COOLING_C1) {
+        display.print("FAN 50% ");
+      }
+      else {
+        display.print("FAN 100% ");
+      }
+
+      display.println(
+        displayCauseText(
+          beltDisplayData.cause
+        )
+      );
       break;
-    case STATE_DANGER:
-      display.print("FAN 100% ");
-      display.println(displayCauseText(beltDisplayData.cause));
-      break;
+
     case STATE_EMERGENCY:
-      display.println("SOS  FAN 100%");
+      display.println("SOS FAN 100%");
       break;
+
     case STATE_SENSOR_CHECK:
       display.println("WEAR GLOVE");
       break;
+
     default:
       display.println("CHECK BELT");
       break;
@@ -386,7 +429,7 @@ void loop() {
   // ── TMP117 온도 ──────────────────────────────
   if (now - lastTempRead >= TEMP_INTERVAL) {
     lastTempRead = now;
-    tempC = tempSensor.readTempC();
+    tempC = tempSensor.readTempC();  // TMP117 원본 측정값 사용
   }
 
   // ── GSR ─────────────────────────────────────
