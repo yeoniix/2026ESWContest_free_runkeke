@@ -20,11 +20,14 @@ TinyGPSPlus    gps;
 // =====================================================
 // 비상 버튼  GPIO7 — INPUT_PULLUP — GND
 // =====================================================
-#define BUTTON_PIN        7
-#define EMERGENCY_HOLD_TIME 5000
+#define BUTTON_PIN           7
+#define EMERGENCY_CANCEL_MS  10000  // Emergency 중 10초 이내 재입력 시 해제
 
 bool          emergencyActive     = false;
-unsigned long lastButtonPressTime = 0;
+unsigned long emergencyStartMs    = 0;   // Emergency 진입 시각
+bool          lastButtonState     = HIGH;
+unsigned long lastDebounceMs      = 0;
+#define DEBOUNCE_MS 50
 
 // =====================================================
 // FAN / MOTOR DRIVER — LEDC PWM
@@ -105,7 +108,7 @@ struct __attribute__((packed)) TelemetryPacket {
   int16_t  gsrDiff;
   uint32_t ir;
   int16_t  airTemp_x10;    // ★ 재활용: high byte=state, low byte=cause
-  uint16_t humidity_x10;   // 미사용(0)
+  uint16_t humidity_x10;   // ★ 재활용: Belt RiskIndex (0~100, 255=INVALID)
   int32_t  latitude_e7;
   int32_t  longitude_e7;
   uint8_t  satellites;
@@ -117,6 +120,10 @@ static_assert(sizeof(TelemetryPacket) == 35, "TelemetryPacket must be 35 bytes")
 
 TelemetryPacket txData;
 uint16_t        loraSequence = 0;
+
+// ★ Belt가 실제 FSM에 사용한 RiskIndex를 관제까지 그대로 전달
+// 0~100 = 유효, 255 = BOOT / BASELINE / SENSOR_CHECK 등 아직 계산 불가
+uint8_t         currentRiskIndex = 255;
 
 // =====================================================
 // BASELINE 수집 (3분)
@@ -256,21 +263,42 @@ void OnTxTimeout() {
 // 비상 버튼
 // =====================================================
 void checkButton() {
-  if (digitalRead(BUTTON_PIN) == LOW) {
-    lastButtonPressTime = millis();
+  bool reading = digitalRead(BUTTON_PIN);
+
+  // 디바운스
+  if (reading != lastButtonState) {
+    lastDebounceMs = millis();
+  }
+  lastButtonState = reading;
+
+  if (millis() - lastDebounceMs < DEBOUNCE_MS) return;
+
+  // 버튼 눌림 (LOW = 눌림, INPUT_PULLUP)
+  static bool prevStable = HIGH;
+  if (reading == LOW && prevStable == HIGH) {
+    prevStable = LOW;
+
     if (!emergencyActive) {
-      emergencyActive = true;
+      // Emergency 진입
+      emergencyActive  = true;
+      emergencyStartMs = millis();
       Serial.println();
       Serial.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
       Serial.println(" EMERGENCY BUTTON PRESSED");
       Serial.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    } else {
+      // Emergency 중 재입력
+      unsigned long held = millis() - emergencyStartMs;
+      if (held <= EMERGENCY_CANCEL_MS) {
+        emergencyActive = false;
+        Serial.println("[BUTTON] Emergency CANCELLED (double press)");
+      } else {
+        // 10초 초과 재입력 → 무시 (Emergency 유지)
+        Serial.println("[BUTTON] Emergency still ACTIVE (too late)");
+      }
     }
   }
-  if (emergencyActive &&
-      millis() - lastButtonPressTime >= EMERGENCY_HOLD_TIME) {
-    emergencyActive = false;
-    Serial.println("[BUTTON] Emergency cleared");
-  }
+  if (reading == HIGH) prevStable = HIGH;
 }
 
 // =====================================================
@@ -281,6 +309,10 @@ void makeDisplayStatus() {
   displayData.magic   = DISPLAY_PACKET_MAGIC;
   displayData.version = DISPLAY_PACKET_VERSION;
   displayData.seq     = displaySequence++;
+
+  // 매 상태 계산 주기마다 우선 INVALID로 초기화.
+  // 실제 Risk 계산 단계까지 도달하면 아래에서 0~100으로 갱신한다.
+  currentRiskIndex = 255;
 
   bool gloveValid = gloveDataReceived &&
                     (millis() - lastGloveReceiveTime < 10000);
@@ -355,6 +387,9 @@ void makeDisplayStatus() {
 
   // ── 4. Risk 계산 ──────────────────────────────────
   uint8_t risk = calculateRisk();
+
+  // ★ 이 값이 팬/OLED/LoRa/대시보드가 공유하는 단일 RiskIndex
+  currentRiskIndex = risk;
 
   // ── 5. 10초 타이머 (risk ≥ 60 구간) ──────────────
   if (risk >= 60) {
@@ -440,6 +475,10 @@ void makeTelemetryPacket() {
     ((uint16_t)displayData.state << 8) | (uint16_t)displayData.cause
   );
 
+  // ★ humidity_x10 재활용: Belt가 실제 FSM에 사용한 RiskIndex
+  // 패킷 크기는 기존과 동일한 35 bytes 유지
+  txData.humidity_x10 = (uint16_t)currentRiskIndex;
+
   // GPS
   bool gpsFresh = gps.location.isValid() &&
                   gps.location.age() < GPS_MAX_AGE_MS;
@@ -495,9 +534,12 @@ void printTelemetry() {
     Serial.printf("Baseline     : BPM %.1f | Temp %.2fC | GSR %d\n",
                   baselineBPM, baselineTemp, baselineGSR);
     Serial.printf("Temp slope   : %.2f C/min\n", tempSlopePM);
-    uint8_t r = calculateRisk();
-    Serial.printf("Risk Score   : %d\n", r);
   }
+
+  if (currentRiskIndex <= 100)
+    Serial.printf("Risk Score   : %d\n", currentRiskIndex);
+  else
+    Serial.println("Risk Score   : INVALID");
 
   // GLOVE
   Serial.println();
