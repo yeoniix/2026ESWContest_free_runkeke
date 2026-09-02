@@ -175,6 +175,10 @@ class LoRaTelemetryAdapter:
             },
             cooling={
                 "requested": requested,
+                # 벨트는 팬 두 개를 개별 채널로 돌리고 1단계 냉각을 "듀티 50%"가 아니라
+                # "팬 하나만 100%"로 구현한다. 패킷에는 켜짐 여부(FAN_ON) 하나만 오므로
+                # 여기서 나오는 값은 0 또는 100뿐이고, 벨트의 냉각 1/2단계를 이 값으로는
+                # 구분할 수 없다 — 구분이 필요하면 raw.belt_state를 본다.
                 "actual_pwm": 100 if packet.fan_on else 0,
                 "current_ma": 0,
             },
