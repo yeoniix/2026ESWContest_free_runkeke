@@ -1,22 +1,22 @@
 """LoRa 수신기의 35바이트 ESP32 패킷을 관제 TelemetryV2로 변환한다.
 
-시리얼/USB 수신기는 이 모듈에 ``payload``, RSSI, SNR만 전달하면 된다. RiskIndex
-계산은 GatewayStore가 아닌 이 엣지 어댑터에서 수행하므로 저장소는 수신 데이터를
-재판정하지 않는 책임 경계를 유지한다.
+현재 실물 하드웨어에서는 BELT를 위험 판정의 단일 기준(Single Source of Truth)으로
+사용한다.
 
-판정이 두 벌인 이유
--------------------
-벨트 펌웨어(firmware/belt_heltec)는 LoRa가 끊겨도 팬과 장갑 OLED를 스스로
-구동해야 하므로 자체 위험점수·상태기계를 갖고 있고, 그 결론을 패킷에 실어
-보낸다. 이 어댑터는 같은 패킷으로 RiskIndex v0.3을 따로 계산한다. 두 판정은
-임계값도 입력 특징도 달라 결과가 갈릴 수 있다.
+흐름:
+    ESP32U 센서
+        -> Belt baseline / RiskIndex / FSM
+        -> 팬 제어
+        -> 장갑 OLED 상태
+        -> LoRa로 RiskIndex + State + Cause 송신
+        -> Base / Gateway / Dashboard는 그대로 표시
 
-어느 한쪽으로 덮어쓰지 않는다:
+따라서 이 어댑터는 더 이상 HardwareRiskAdapter / HeatSentryFsm으로
+RiskIndex와 상태를 다시 계산하지 않는다.
 
-- ``state``/``risk_index``    게이트웨이의 RiskIndex v0.3 판정 (관제·분석용)
-- ``raw.belt_state``/``raw.belt_cause``  벨트가 실제로 내린 판정.
-  현장에서 팬을 돌리고 장갑 화면에 뜬 것은 이 값이다.
-- 둘이 갈리면 ``active_errors``에 ``BELT_STATE_MISMATCH``를 남긴다.
+현재 35바이트 패킷 재활용:
+    airTemp_x10   : high byte = belt state, low byte = belt cause
+    humidity_x10 : belt RiskIndex (0~100, 255=invalid)
 """
 
 from __future__ import annotations
@@ -25,21 +25,17 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from heatsentry.algorithm.hardware_adapter import HardwareRiskAdapter
-from heatsentry.algorithm.risk_config import HARDWARE_CONFIG, RiskConfig
-from heatsentry.algorithm.fsm import HeatSentryFsm, ManualInputs
 from heatsentry.common.glove_packets import (
+    BeltCauseCode,
     BeltStateCode,
     GloveTelemetryPacket,
     decode_glove_telemetry,
 )
 from heatsentry.common.schema import TelemetryV2
 
-# 벨트의 상태 코드를 게이트웨이의 DeviceState 이름으로 옮긴 표.
-# 두 체계는 단계 구분이 다르다 — 벨트는 팬 출력(50/100)으로, 게이트웨이는
-# RiskIndex 지속시간(C1~C4)으로 나눈다. 아래는 "같은 뜻으로 볼 수 있는" 대응이며,
-# 불일치 검출에만 쓰고 게이트웨이 판정을 덮어쓰는 데는 쓰지 않는다.
-_BELT_TO_DEVICE_STATE = {
+
+# Belt 상태를 Dashboard TelemetryV2 state 이름으로 변환
+_BELT_TO_DEVICE_STATE: dict[BeltStateCode, str] = {
     BeltStateCode.BOOT: "BOOT",
     BeltStateCode.BASELINE: "BASELINE",
     BeltStateCode.NORMAL: "NORMAL",
@@ -51,49 +47,145 @@ _BELT_TO_DEVICE_STATE = {
 }
 
 
+# Dashboard의 cooling.requested는 C0~C4 숫자
+#
+# 현재 Belt FSM:
+# NORMAL / CAUTION -> C0
+# COOLING_50       -> C1
+# DANGER           -> C2
+# EMERGENCY        -> C4
+_BELT_TO_COOLING_STAGE: dict[BeltStateCode, int] = {
+    BeltStateCode.BOOT: 0,
+    BeltStateCode.BASELINE: 0,
+    BeltStateCode.NORMAL: 0,
+    BeltStateCode.CAUTION: 0,
+    BeltStateCode.COOLING_50: 1,
+    BeltStateCode.DANGER: 2,
+    BeltStateCode.EMERGENCY: 4,
+    BeltStateCode.SENSOR_CHECK: 0,
+}
+
+
+# Dashboard DeviceCard는 contributions에서 가장 큰 key를 골라
+# "심박 상승 / 피부온도 상승 / GSR 변화 ..."를 표시한다.
+_CAUSE_TO_CONTRIBUTION: dict[BeltCauseCode, str] = {
+    BeltCauseCode.HR_HIGH: "HR_dev",
+    BeltCauseCode.HR_CHANGE: "HRV_suppression",
+    BeltCauseCode.TEMP_UP: "SkinTemp_slope",
+    BeltCauseCode.GSR_UP: "EDA_delta",
+    BeltCauseCode.HOT_ENV: "EnvHeatProxy",
+    BeltCauseCode.ACTIVE: "ActivityLoad",
+}
+
+
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 @dataclass
 class _SequenceState:
+    """ESP32 uint16 sequence를 장시간 동작용 증가 sequence로 확장."""
+
     last_raw: int | None = None
     wrap_count: int = 0
 
     def extend(self, raw_sequence: int) -> int:
-        if self.last_raw is not None and self.last_raw > 60_000 and raw_sequence < 1_000:
+        # 65535 -> 0 wrap 감지
+        if (
+            self.last_raw is not None
+            and self.last_raw > 60_000
+            and raw_sequence < 1_000
+        ):
             self.wrap_count += 1
+
         self.last_raw = raw_sequence
+
         return self.wrap_count * 65_536 + raw_sequence
 
 
-@dataclass
-class _DevicePipeline:
-    risk_adapter: HardwareRiskAdapter
-    fsm: HeatSentryFsm
-    last_monotonic_ms: int | None = None
+def _belt_contributions(
+    packet: GloveTelemetryPacket,
+) -> dict[str, float]:
+    """벨트 Cause를 기존 Dashboard '판단 근거' 형식으로 변환."""
+
+    cause = packet.belt_cause
+
+    if cause is None:
+        return {}
+
+    contribution_key = _CAUSE_TO_CONTRIBUTION.get(cause)
+
+    if contribution_key is None:
+        # NONE / SENSOR는 위험 기여도 그래프용 원인이 아님
+        return {}
+
+    risk = packet.belt_risk_index
+
+    # DeviceCard에서는 상대적인 최대값만 사용한다.
+    # 실제 Risk가 있으면 그 값을 쓰고, 없으면 1.0을 넣어 label만 유지한다.
+    if risk is not None and 0 <= risk <= 100:
+        value = float(risk)
+    else:
+        value = 1.0
+
+    return {
+        contribution_key: value,
+    }
+
+
+def _effective_fan_percent(
+    packet: GloveTelemetryPacket,
+) -> int:
+    """대시보드에 표시할 전체 냉각 출력.
+
+    현재 Belt 하드웨어 구현:
+    - COOLING_50 : FAN1 100%, FAN2 0% -> 전체 냉각단계 50%
+    - DANGER     : FAN1 100%, FAN2 100% -> 100%
+    - EMERGENCY  : FAN1 100%, FAN2 100% -> 100%
+
+    LoRa flags에는 FAN_ON 한 비트만 있으므로 Belt state와 함께 해석한다.
+    """
+
+    if not packet.fan_on:
+        return 0
+
+    state = packet.belt_state
+
+    if state == BeltStateCode.COOLING_50:
+        return 50
+
+    if state in (
+        BeltStateCode.DANGER,
+        BeltStateCode.EMERGENCY,
+    ):
+        return 100
+
+    # 예상하지 못한 상태에서 FAN_ON이 들어온 경우에도
+    # 실제 팬이 켜졌다는 사실은 보존한다.
+    return 100
 
 
 class LoRaTelemetryAdapter:
-    """수신기 프로세스에서 장치별로 하나만 생성해 재사용한다.
+    """35B LoRa packet을 Belt 판정 그대로 TelemetryV2로 변환한다."""
 
-    기본 설정은 HARDWARE_CONFIG다 — 실물 패킷에 없는 HRV·IMU·환경 특징의
-    가중치가 0이라, 살아있는 가중치 합이 설계상 결손 때문에 미달하는 일이 없다.
-    """
-
-    def __init__(self, config: RiskConfig = HARDWARE_CONFIG) -> None:
-        self.config = config
+    def __init__(self, *args, **kwargs) -> None:
+        # 기존 코드/테스트가 LoRaTelemetryAdapter(config=...) 형태로
+        # 생성하더라도 깨지지 않도록 인자는 받아 두되 사용하지 않는다.
         self._sequences: dict[int, _SequenceState] = {}
-        self._pipelines: dict[int, _DevicePipeline] = {}
 
-    def _pipeline(self, packet: GloveTelemetryPacket) -> _DevicePipeline:
-        return self._pipelines.setdefault(
+    def _extended_sequence(
+        self,
+        packet: GloveTelemetryPacket,
+    ) -> int:
+        state = self._sequences.setdefault(
             packet.node_id,
-            _DevicePipeline(HardwareRiskAdapter(self.config), HeatSentryFsm(self.config.fsm)),
+            _SequenceState(),
         )
 
-    def _extended_sequence(self, packet: GloveTelemetryPacket) -> int:
-        state = self._sequences.setdefault(packet.node_id, _SequenceState())
         return state.extend(packet.sequence)
 
     def convert(
@@ -104,103 +196,192 @@ class LoRaTelemetryAdapter:
         snr_db: int | None = None,
         monotonic_ms: int | None = None,
     ) -> TelemetryV2:
-        packet = decode_glove_telemetry(payload)
-        monotonic_ms = monotonic_ms if monotonic_ms is not None else int(time.monotonic() * 1000)
-        pipeline = self._pipeline(packet)
-        reading = pipeline.risk_adapter.update(packet, monotonic_ms)
 
-        if pipeline.last_monotonic_ms is None:
-            dt_s = 1.0
-        else:
-            dt_s = max(0.0, (monotonic_ms - pipeline.last_monotonic_ms) / 1000.0)
-        pipeline.last_monotonic_ms = monotonic_ms
+        packet = decode_glove_telemetry(payload)
+
+        if monotonic_ms is None:
+            monotonic_ms = int(time.monotonic() * 1000)
 
         active_errors: list[str] = []
-        if not packet.sensor_ready:
-            active_errors.append("SENSOR_CHECK")
-        # DHT 미탑재는 오류가 아니다 — 센서가 동작하지 않아 하드웨어에서 제거됐고,
-        # HARDWARE_CONFIG가 EnvHeatProxy 가중치를 0으로 두어 설계에 반영돼 있다.
 
-        if packet.emergency_active:
-            state = "EMERGENCY"
-            risk_index = 255 if reading.risk is None else reading.risk.risk_index
-            valid_weight = 0.0 if reading.risk is None else reading.risk.valid_weight
-            contributions = {} if reading.risk is None else reading.risk.contributions
-            requested = self.config.fsm.stage_index("C4")
-        elif not packet.sensor_ready:
+        # ==============================================================
+        # 1. STATE
+        # Gateway에서 재판정하지 않고 Belt state를 그대로 사용
+        # ==============================================================
+        belt_state = packet.belt_state
+
+        if belt_state is None:
             state = "FAULT"
-            risk_index = 255
-            valid_weight = 0.0
-            contributions = {}
-            requested = 0
-        elif reading.risk is None:
-            state = "BASELINE"
-            risk_index = 255
-            valid_weight = 0.0
-            contributions = {}
-            requested = 0
+            requested_stage = 0
+            active_errors.append("BELT_STATE_INVALID")
         else:
-            fsm_out = pipeline.fsm.update(
-                reading.risk,
-                dt_s,
-                ManualInputs(manual_sos=packet.emergency_active),
-            )
-            state = fsm_out.device_state.name
-            risk_index = reading.risk.risk_index
-            valid_weight = reading.risk.valid_weight
-            contributions = reading.risk.contributions
-            requested = self.config.fsm.stage_index(fsm_out.cooling_stage)
-            active_errors.extend(error.value for error in reading.risk.active_errors)
-            if reading.risk.sensor_limited:
-                active_errors.append("SENSOR_LIMITED")
-            # 두 판정이 갈리면 감춘다고 안전해지지 않는다. 현장 장치(벨트)와
-            # 관제(RiskIndex v0.3)가 서로 다른 결론을 냈다는 사실 자체를 올린다.
-            belt_equivalent = _BELT_TO_DEVICE_STATE.get(packet.belt_state) if packet.belt_state else None
-            if belt_equivalent is not None and belt_equivalent != state:
-                active_errors.append("BELT_STATE_MISMATCH")
+            state = _BELT_TO_DEVICE_STATE[belt_state]
+            requested_stage = _BELT_TO_COOLING_STAGE[belt_state]
 
+        # SENSOR_CHECK도 Belt가 결정한 경우에만 관제에 올린다.
+        if belt_state == BeltStateCode.SENSOR_CHECK:
+            active_errors.append("SENSOR_CHECK")
+
+        # ==============================================================
+        # 2. RISK INDEX
+        # Belt가 실제 FSM에 사용한 값을 그대로 사용
+        # ==============================================================
+        belt_risk = packet.belt_risk_index
+
+        if belt_risk is None:
+            # 구형 패킷/DHT 패킷/잘못된 값
+            risk_index = 255
+
+            if belt_state not in (
+                BeltStateCode.BOOT,
+                BeltStateCode.BASELINE,
+                BeltStateCode.SENSOR_CHECK,
+            ):
+                active_errors.append("BELT_RISK_INVALID")
+
+        else:
+            risk_index = belt_risk
+
+        # 0~100일 때만 유효한 실제 Risk
+        valid_weight = (
+            1.0
+            if 0 <= risk_index <= 100
+            else 0.0
+        )
+
+        # ==============================================================
+        # 3. SENSOR QUALITY
+        #
+        # Gateway Risk 계산을 없앴으므로 HardwareRiskAdapter의 quality를
+        # 더 이상 만들 수 없다. 현재 실제 패킷에서 확인 가능한 상태만
+        # 단순 0/100으로 표현한다.
+        # ==============================================================
         glove_available = packet.glove_available
+
+        ppg_ok = (
+            glove_available
+            and packet.finger_detected
+            and packet.bpm > 0
+        )
+
+        quality = {
+            "ppg": 100 if ppg_ok else 0,
+            "skin": 100 if glove_available else 0,
+            "eda": 100 if glove_available else 0,
+            # 현재 35B 패킷에는 IMU 데이터가 없음
+            "imu": 0,
+        }
+
+        # ==============================================================
+        # 4. TelemetryV2 생성
+        # ==============================================================
         return TelemetryV2(
             gateway_utc=_utc_now(),
+
             device_id=f"HS-W-{packet.node_id:03d}",
+
             monotonic_ms=monotonic_ms,
+
+            # ★ Belt의 실제 상태
             state=state,
+
+            # ★ Belt의 실제 RiskIndex
             risk_index=risk_index,
+
             valid_weight=valid_weight,
-            quality={key: reading.quality[key] for key in ("ppg", "skin", "eda", "imu")},
+
+            quality=quality,
+
             signals={
-                "hr_bpm": packet.bpm if glove_available else 0,
-                "skin_c": packet.skin_temp_c if glove_available else 0.0,
+                "hr_bpm": (
+                    packet.bpm
+                    if glove_available
+                    else 0
+                ),
+                "skin_c": (
+                    packet.skin_temp_c
+                    if glove_available
+                    else 0.0
+                ),
                 "activity": "UNKNOWN",
             },
+
             cooling={
-                "requested": requested,
-                # 벨트는 팬 두 개를 개별 채널로 돌리고 1단계 냉각을 "듀티 50%"가 아니라
-                # "팬 하나만 100%"로 구현한다. 패킷에는 켜짐 여부(FAN_ON) 하나만 오므로
-                # 여기서 나오는 값은 0 또는 100뿐이고, 벨트의 냉각 1/2단계를 이 값으로는
-                # 구분할 수 없다 — 구분이 필요하면 raw.belt_state를 본다.
-                "actual_pwm": 100 if packet.fan_on else 0,
+                # C0~C4
+                "requested": requested_stage,
+
+                # 실제 하드웨어 냉각 표현
+                "actual_pwm": _effective_fan_percent(packet),
+
+                # 현재 전류 센서 없음
                 "current_ma": 0,
             },
-            contributions=contributions,
+
+            # Dashboard "판단 근거"도 Belt Cause를 사용
+            contributions=_belt_contributions(packet),
+
+            # BELT_STATE_MISMATCH는 더 이상 생성하지 않음
             active_errors=sorted(set(active_errors)),
+
             raw={
-                "gsr": packet.gsr if glove_available else None,
-                "gsr_diff": packet.gsr_diff if glove_available else None,
-                "ir": packet.ir if glove_available else None,
+                "gsr": (
+                    packet.gsr
+                    if glove_available
+                    else None
+                ),
+                "gsr_diff": (
+                    packet.gsr_diff
+                    if glove_available
+                    else None
+                ),
+                "ir": (
+                    packet.ir
+                    if glove_available
+                    else None
+                ),
+
+                # 현재 DHT 미탑재이므로 보통 None
                 "air_temp_c": packet.air_temp_c,
                 "humidity_percent": packet.humidity_percent,
+
                 "finger_detected": packet.finger_detected,
                 "glove_data": packet.glove_available,
                 "dht_data": packet.dht_available,
-                "belt_state": packet.belt_state.name if packet.belt_state else None,
-                "belt_cause": packet.belt_cause.name if packet.belt_cause else None,
+
+                # ★ 현장 Belt 판정
+                "belt_state": (
+                    packet.belt_state.name
+                    if packet.belt_state is not None
+                    else None
+                ),
+                "belt_cause": (
+                    packet.belt_cause.name
+                    if packet.belt_cause is not None
+                    else None
+                ),
                 "belt_fan_on": packet.fan_on,
+
+                # GPS
                 "gps_fix": packet.gps_fix,
-                "latitude": packet.latitude if packet.gps_fix else None,
-                "longitude": packet.longitude if packet.gps_fix else None,
+                "latitude": (
+                    packet.latitude
+                    if packet.gps_fix
+                    else None
+                ),
+                "longitude": (
+                    packet.longitude
+                    if packet.gps_fix
+                    else None
+                ),
             },
-            radio={"rssi_dbm": rssi_dbm, "snr_db": snr_db},
-            config_version=self.config.version,
+
+            radio={
+                "rssi_dbm": rssi_dbm,
+                "snr_db": snr_db,
+            },
+
+            # Gateway Risk v0.3이 아니라 Belt Risk를 사용한다는 표시
+            config_version="belt-risk-v1",
+
             sequence=self._extended_sequence(packet),
         )
