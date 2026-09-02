@@ -24,7 +24,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 DeviceStateName = Literal[
-    "BOOT", "BASELINE", "NORMAL", "WARNING", "COOLING", "EMERGENCY", "FAULT"
+    "BOOT", "BASELINE", "NORMAL", "CAUTION", "COOLING", "EMERGENCY", "SENSOR_CHECK"
 ]
 ActivityName = Literal["REST", "WALK", "RUN", "CRAWL", "STATIC", "UNKNOWN"]
 
