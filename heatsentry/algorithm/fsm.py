@@ -1,187 +1,319 @@
-"""안전 상태기계 + 명령 중재.
+"""HeatSentry safety FSM.
 
-출처:
-- HS-SIID-002 p7 그림2/표7 "상태기계와 명령 중재" (품질 게이트 -> 설명 가능한
-  지수 -> 자동 개입 -> 사람 확인, 명령 중재 우선순위).
-- HS-PDD-002 p6 표7 "냉각 상태 기준"(C0~C4), Fail-safe 규칙.
+DeviceState:
+    BOOT / BASELINE / NORMAL / CAUTION /
+    COOLING / EMERGENCY / SENSOR_CHECK
 
-핵심 설계: RiskIndex 임계값별로 "몇 초 연속 그 임계값 이상이었는가"를 추적하는
-HoldTimer만으로 C0~C4 승급/강등과 WARNING 진입/해제를 모두 표현한다. 같은 조건
-(risk>=90)에서 파생되는 C2(10초)와 C3(60초)는 timer 하나를 공유해도 자연스럽게
-동시에 계산된다 — 이는 90 이상이 60초 유지되면 그 안에 이미 10초 지점도 지났기
-때문이다.
+CoolingStage:
+    C0 / C1 / C2 / C3 / C4
 
-EMERGENCY(C4) 해제는 이 파일이 자동으로 하지 않는다("금지 사항: 대시보드가
-Emergency를 자동 해제해서는 안 된다", SIID p7). close_emergency()는 서버의
-/api/v2/emergency/{id}/close 핸들러가 현장 확인자 정보와 함께 명시적으로 호출할
-때만 실행된다.
+The generic Python FSM handles the risk-driven states after baseline.
+BOOT / BASELINE / SENSOR_CHECK are selected by the caller depending on
+initialization and sensor readiness.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from heatsentry.algorithm.risk_config import FsmConfig, DEFAULT_CONFIG
-from heatsentry.algorithm.risk_engine import RiskResult
-from heatsentry.common.packets import CoolReason, DeviceState
+from heatsentry.algorithm.risk_config import (
+    FsmConfig,
+    DEFAULT_CONFIG,
+)
+from heatsentry.algorithm.risk_engine import (
+    RiskResult,
+)
+from heatsentry.common.packets import (
+    CoolReason,
+    DeviceState,
+)
 
 
 class HoldTimer:
-    """조건이 계속 참인 시간을 초 단위로 누적하고, 거짓이 되면 0으로 리셋한다."""
-
     def __init__(self) -> None:
         self.value = 0.0
 
-    def tick(self, condition: bool, dt_s: float) -> float:
-        self.value = self.value + dt_s if condition else 0.0
+    def tick(
+        self,
+        condition: bool,
+        dt_s: float,
+    ) -> float:
+        self.value = (
+            self.value + dt_s
+            if condition
+            else 0.0
+        )
+
         return self.value
 
 
 @dataclass
 class ManualInputs:
-    """명령 중재 표7의 우선순위 1/2/4/5 입력. 우선순위 3(RiskIndex)은 FSM이 스스로 계산한다."""
-
-    safety_stop: bool = False  # 우선순위1: 수동 STOP·과전류·저온(허리에서 보고)
-    manual_sos: bool = False  # 우선순위2 성분: 수동 SOS 버튼
-    commander_fan_percent: int | None = None  # 우선순위4: 지휘관 수동 냉각(0/50/100)
-    test_mode: bool = False  # 우선순위5
+    safety_stop: bool = False
+    manual_sos: bool = False
+    commander_fan_percent: int | None = None
+    test_mode: bool = False
 
 
 @dataclass
 class FsmOutput:
     device_state: DeviceState
-    cooling_stage: str  # C0~C4
+    cooling_stage: str
     commanded_fan_percent: int
     cool_reason: CoolReason
     sos: bool
-    warning_active: bool
+
+    caution_active: bool
+
     hard_trigger_latched: bool
-    events: list[str] = field(default_factory=list)  # 이번 tick에 새로 발생한 사건
+
+    events: list[str] = field(
+        default_factory=list
+    )
 
 
 class HeatSentryFsm:
-    def __init__(self, config: FsmConfig = DEFAULT_CONFIG.fsm) -> None:
+    def __init__(
+        self,
+        config: FsmConfig = DEFAULT_CONFIG.fsm,
+    ) -> None:
         self.config = config
+
         self.stage = "C0"
-        self.warning_active = False
+        self.caution_active = False
+
         self.emergency_latched = False
         self.emergency_reason: str | None = None
 
-        # 임계값별 유지시간 타이머. 표에 같은 임계값이 여러 번 나오면(C2/C3의 90)
-        # 타이머를 공유한다 — 90이 60초 유지됐다면 10초 지점은 이미 지났으므로
-        # C2 승급과 C3 승급이 하나의 누적값으로 동시에 성립한다.
         self._t_enter: dict[int, HoldTimer] = {}
         self._t_exit: dict[int, HoldTimer] = {}
-        for stage in config.stages:
-            self._t_enter.setdefault(stage.enter_threshold, HoldTimer())
-            if stage.exit_threshold is not None:
-                self._t_exit.setdefault(stage.exit_threshold, HoldTimer())
-        self._t_warning_enter = HoldTimer()
-        self._t_warning_exit = HoldTimer()
 
-        self.commander_recovery_confirm = False  # C3->C2 하향 시 필요 (표7 "지휘관 확인")
+        for stage in config.stages:
+            self._t_enter.setdefault(
+                stage.enter_threshold,
+                HoldTimer(),
+            )
+
+            if stage.exit_threshold is not None:
+                self._t_exit.setdefault(
+                    stage.exit_threshold,
+                    HoldTimer(),
+                )
+
+        self._t_caution_enter = HoldTimer()
+        self._t_caution_exit = HoldTimer()
+
+        self.commander_recovery_confirm = False
 
     def confirm_recovery(self) -> None:
-        """지휘관이 회복 추세를 확인했다는 표시. C3->C2 하향 조건에 쓰인다."""
         self.commander_recovery_confirm = True
 
     def close_emergency(self) -> None:
-        """서버가 현장 확인자 ID·시각·사유를 검증한 뒤에만 호출해야 한다."""
         self.emergency_latched = False
         self.emergency_reason = None
-        self.stage = "C3"  # 해제 직후에도 즉시 OFF로 점프하지 않고 한 단계 냉각 유지
+
+        # C4 해제 직후 C3 유지
+        self.stage = "C3"
 
     def update(
-        self, risk: RiskResult, dt_s: float, manual: ManualInputs | None = None
+        self,
+        risk: RiskResult,
+        dt_s: float,
+        manual: ManualInputs | None = None,
     ) -> FsmOutput:
+
         manual = manual or ManualInputs()
         cfg = self.config
+
         events: list[str] = []
-        risk_index = risk.risk_index if risk.risk_index != 255 else 0
 
-        # --- WARNING 진입/해제 (히스테리시스) ---
-        self._t_warning_enter.tick(risk_index >= cfg.warning_enter, dt_s)
-        self._t_warning_exit.tick(risk_index < cfg.warning_exit, dt_s)
-        if not self.warning_active and self._t_warning_enter.value >= cfg.warning_enter_hold_s:
-            self.warning_active = True
-            events.append("WARNING_ENTER")
-        elif self.warning_active and self._t_warning_exit.value >= cfg.warning_exit_hold_s:
-            self.warning_active = False
-            events.append("WARNING_EXIT")
+        risk_index = (
+            risk.risk_index
+            if risk.risk_index != 255
+            else 0
+        )
 
-        # --- 냉각 단계 승급 후보 계산 (표7) ---
+        # ---------------------------------------------------------------
+        # CAUTION hysteresis
+        # ---------------------------------------------------------------
+        self._t_caution_enter.tick(
+            risk_index >= cfg.caution_enter,
+            dt_s,
+        )
+
+        self._t_caution_exit.tick(
+            risk_index < cfg.caution_exit,
+            dt_s,
+        )
+
+        if (
+            not self.caution_active
+            and self._t_caution_enter.value
+            >= cfg.caution_enter_hold_s
+        ):
+            self.caution_active = True
+            events.append("CAUTION_ENTER")
+
+        elif (
+            self.caution_active
+            and self._t_caution_exit.value
+            >= cfg.caution_exit_hold_s
+        ):
+            self.caution_active = False
+            events.append("CAUTION_EXIT")
+
+        # ---------------------------------------------------------------
+        # Cooling stage timers
+        # ---------------------------------------------------------------
         for threshold, timer in self._t_enter.items():
-            timer.tick(risk_index >= threshold, dt_s)
-        for threshold, timer in self._t_exit.items():
-            timer.tick(risk_index < threshold, dt_s)
+            timer.tick(
+                risk_index >= threshold,
+                dt_s,
+            )
 
-        # 표를 낮은 단계부터 훑어 조건을 만족하는 가장 높은 단계를 후보로 삼는다.
-        # enter_hold_s가 0인 단계(C4)는 타이머만 보면 조건이 항상 참이 되므로
-        # 현재 RiskIndex가 임계 이상인지를 함께 확인한다.
+        for threshold, timer in self._t_exit.items():
+            timer.tick(
+                risk_index < threshold,
+                dt_s,
+            )
+
         candidate = cfg.stages[0].name
+
         for stage in cfg.stages[1:]:
-            held = self._t_enter[stage.enter_threshold].value
-            if risk_index >= stage.enter_threshold and held >= stage.enter_hold_s:
+            held = self._t_enter[
+                stage.enter_threshold
+            ].value
+
+            if (
+                risk_index >= stage.enter_threshold
+                and held >= stage.enter_hold_s
+            ):
                 candidate = stage.name
 
-        hard_trigger = risk.hard_trigger or manual.manual_sos
-        if hard_trigger and not self.emergency_latched:
+        # ---------------------------------------------------------------
+        # Emergency latch
+        # Hard trigger or manual SOS.
+        # Risk >=95 becomes candidate C4 and is also latched here so that
+        # C4 has no automatic release.
+        # ---------------------------------------------------------------
+        hard_trigger = (
+            risk.hard_trigger
+            or manual.manual_sos
+        )
+
+        c4_config = cfg.stage("C4")
+
+        risk_c4 = (
+            risk_index >= c4_config.enter_threshold
+        )
+
+        if (
+            (hard_trigger or risk_c4)
+            and not self.emergency_latched
+        ):
             self.emergency_latched = True
-            self.emergency_reason = "hard_trigger" if risk.hard_trigger else "manual_sos"
+
+            if manual.manual_sos:
+                self.emergency_reason = "manual_sos"
+            elif risk.hard_trigger:
+                self.emergency_reason = "hard_trigger"
+            else:
+                self.emergency_reason = "risk_c4"
+
             events.append("EMERGENCY_ENTER")
 
         if self.emergency_latched:
             self.stage = "C4"
+
         else:
-            current_idx = cfg.stage_index(self.stage)
-            candidate_idx = cfg.stage_index(candidate)
+            current_idx = cfg.stage_index(
+                self.stage
+            )
+
+            candidate_idx = cfg.stage_index(
+                candidate
+            )
+
             if candidate_idx > current_idx:
                 self.stage = candidate
-                events.append(f"COOLING_{self.stage}")
+                events.append(
+                    f"COOLING_{self.stage}"
+                )
+
             else:
-                # 강등은 현재 단계 하나만, 그 단계의 해제 조건으로만 판단한다.
-                # exit_threshold가 None인 단계(C0/C4)는 자동으로 내려가지 않는다 —
-                # C4는 close_emergency()로만 벗어난다.
-                current = cfg.stages[current_idx]
+                current = cfg.stages[
+                    current_idx
+                ]
+
                 if (
                     current.exit_threshold is not None
-                    and self._t_exit[current.exit_threshold].value >= current.exit_hold_s
-                    and (self.commander_recovery_confirm or not current.exit_requires_commander)
+                    and self._t_exit[
+                        current.exit_threshold
+                    ].value >= current.exit_hold_s
+                    and (
+                        self.commander_recovery_confirm
+                        or not current.exit_requires_commander
+                    )
                 ):
                     if current.exit_requires_commander:
                         self.commander_recovery_confirm = False
-                    self.stage = cfg.stages[current_idx - 1].name
-                    events.append(f"COOLING_{self.stage}")
 
-        # --- 명령 중재 (표7 우선순위) ---
-        risk_fan = cfg.stage(self.stage).fan_percent
+                    self.stage = cfg.stages[
+                        current_idx - 1
+                    ].name
+
+                    events.append(
+                        f"COOLING_{self.stage}"
+                    )
+
+        # ---------------------------------------------------------------
+        # Command arbitration
+        # ---------------------------------------------------------------
+        risk_fan = cfg.stage(
+            self.stage
+        ).fan_percent
+
         commanded_fan = risk_fan
         reason = CoolReason.RISK_FSM
 
         if self.emergency_latched:
             commanded_fan = 100
             reason = CoolReason.EMERGENCY
+
         elif manual.commander_fan_percent is not None:
-            # 우선순위4: 지휘관 수동 냉각은 안전 한계 내에서 RiskIndex 권고보다
-            # 세게 틀 수는 있어도(보조 목적) 자동 판정을 아예 무시하진 않는다.
-            commanded_fan = max(risk_fan, min(100, max(0, manual.commander_fan_percent)))
+            commanded_fan = max(
+                risk_fan,
+                min(
+                    100,
+                    max(
+                        0,
+                        manual.commander_fan_percent,
+                    ),
+                ),
+            )
+
             reason = CoolReason.COMMANDER
 
         if manual.test_mode:
             reason = CoolReason.TEST
 
         if manual.safety_stop:
-            # 우선순위1: 최우선. 팬 OFF, 논리적 stage/타이머는 보존한다.
             commanded_fan = 0
             reason = CoolReason.SAFETY_STOP
             events.append("SAFETY_STOP")
 
+        # ---------------------------------------------------------------
+        # Unified DeviceState
+        # ---------------------------------------------------------------
         if self.emergency_latched:
             device_state = DeviceState.EMERGENCY
+
         elif self.stage != "C0":
             device_state = DeviceState.COOLING
-        elif self.warning_active:
+
+        elif self.caution_active:
             device_state = DeviceState.CAUTION
+
         else:
             device_state = DeviceState.NORMAL
 
@@ -191,7 +323,7 @@ class HeatSentryFsm:
             commanded_fan_percent=commanded_fan,
             cool_reason=reason,
             sos=self.emergency_latched,
-            warning_active=self.warning_active,
+            caution_active=self.caution_active,
             hard_trigger_latched=self.emergency_latched,
             events=events,
         )
