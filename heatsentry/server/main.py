@@ -6,10 +6,6 @@ HS-SIID-002 기준선의 로컬 API v2 + WebSocket을 구현한다. 실행:
 
 heatsentry/simulator가 /ingest/*로 텔레메트리를 보내면 이 서버가 저장·해시체인·역할기반
 확인 절차를 거쳐 /api/v2/*와 /ws/live로 대시보드에 내보낸다.
-
-구 버전(GPS 분대 관제, soldier_id/readiness_score 기반 /api/sensor)은
-HS-SIID-002/HS-PDD-002 v2.0으로 기준선이 바뀌면서 이 파일에서 완전히
-교체됐다. 이전 구현은 git 이력에서 확인할 수 있다.
 """
 
 from __future__ import annotations
@@ -46,8 +42,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="HeatSentry Gateway", version="2.0", lifespan=lifespan)
 
-# A browser dashboard is local by default.  Deployments must list their exact
-# console origins instead of exposing credentialed API calls to every origin.
+# 대시보드는 기본적으로 로컬에서 뜬다. 배포 시에는 관제 콘솔의 오리진을 정확히
+# 나열해야 하며, 모든 오리진에 인증 요청을 열어두어서는 안 된다.
 allowed_origins = [
     origin.strip()
     for origin in os.environ.get(

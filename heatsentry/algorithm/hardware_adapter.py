@@ -1,14 +1,11 @@
 """현재 ESP32 LoRa 패킷을 RiskIndex 입력으로 변환한다.
 
-실물 35바이트 패킷에는 6특징 중 3개가 없다 — HRV(패킷에 RMSSD 필드 없음),
-ActivityLoad(IMU 미탑재), EnvHeatProxy(DHT 온습도 센서가 동작하지 않아
-하드웨어에서 제거됨). 이 어댑터는 없는 값을 0으로 가정하지 않고, 남은
-3특징(HR 편차·피부온도 상승률·GSR 변화)에 가중치를 재분배한 HARDWARE_CONFIG를
-쓴다. 자세한 근거는 risk_config.py의 HARDWARE_WEIGHTS 주석 참고.
+실물 35바이트 패킷에는 HRV(RMSSD 필드 없음)·ActivityLoad(IMU 미탑재)·
+EnvHeatProxy(DHT 제거)가 없다. 없는 값을 0으로 가정하지 않고, 남은 3특징에
+가중치를 재분배한 HARDWARE_CONFIG를 쓴다(risk_config.py의 HARDWARE_WEIGHTS).
 
-벨트 펌웨어는 자체 임계값으로 별도의 상태 판정을 하고 그 결과를 패킷에 실어
-보낸다(GloveTelemetryPacket.belt_state). 이 어댑터가 계산하는 RiskIndex v0.3과는
-판정 기준이 다르므로, 둘은 서로를 덮어쓰지 않고 나란히 관제로 올라간다.
+벨트의 자체 판정(GloveTelemetryPacket.belt_state)은 기준이 다르므로 덮어쓰지
+않고 나란히 관제로 올린다.
 """
 
 from __future__ import annotations

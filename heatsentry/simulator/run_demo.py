@@ -1,8 +1,7 @@
 """HeatSentry 손목/허리 노드 시뮬레이터 CLI.
 
-옛 simulator/simulator.py(GPS 분대 관제, soldier_id 기반)를 대체한다. 이제는
-HS-SIID-002/HS-PDD-002 v2.0 기준선에 맞춰 손목(SU-W)+허리(SU-B) 폐루프를
-재생하고, 그 결과를 게이트웨이(server)에 실제로 HTTP POST로 흘려보낸다.
+손목(SU-W)+허리(SU-B) 폐루프를 시나리오대로 재생하고, 그 결과를
+게이트웨이에 HTTP POST로 흘려보낸다.
 
 사용 예:
     # 게이트웨이가 켜져 있어야 한다: uvicorn heatsentry.server.main:app --port 8000

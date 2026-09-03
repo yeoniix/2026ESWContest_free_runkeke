@@ -158,9 +158,7 @@ class WristNode:
                 )
             return record, events
 
-        # 표4 정책 #3 계열: 최종 실패 -> 통신 오류 경고 + 게이트웨이에 직접 SOS 시도
-        # (v1.0 SIDD p11 "3회 실패 시 손목에서 통신 오류를 경고하고 게이트웨이에
-        # 직접 SOS를 시도한다"; v2.0에서도 안전 원칙은 유지).
+        # 표4 정책 #3: 3회 최종 실패 -> 통신 오류 경고 + 게이트웨이에 직접 SOS 시도.
         events.append(
             {
                 "event_type": "COOL_CMD_FAILED",
@@ -293,8 +291,7 @@ class WristNode:
             "config_version": self.config.version,
             "sequence": self.sequence,
         }
-        # 실제 장갑 펌웨어는 이 두 문구를 I2C LCD/OLED에 그대로 출력하면 된다.
-        # 현재 API 스키마는 호환성을 위해 화면 문구를 저장하지 않는다.
+        # 현재 API 스키마는 화면 문구를 저장하지 않는다.
         display = make_display_status(
             device_state.name,
             cooling_stage,
