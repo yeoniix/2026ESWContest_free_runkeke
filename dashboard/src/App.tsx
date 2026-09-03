@@ -36,38 +36,15 @@ function loadActorId(): string {
 
 
 /**
- * 실제 현장 Belt 상태를 우선 사용해 냉각 중인지 판단한다.
- *
- * COOLING_50 = 팬 1개 동작 / 50% 냉각 단계
- * DANGER     = 100% 냉각 단계
- *
- * raw.belt_state가 없는 시뮬레이터/구형 데이터는
- * 기존 telemetry.state === "COOLING"을 fallback으로 사용한다.
+ * 프로젝트 전체가 동일한 DeviceState를 사용하므로
+ * Dashboard도 telemetry.state만 보면 된다.
  */
 function isCoolingDevice(device: TelemetryV2): boolean {
-  const beltState = device.raw?.belt_state ?? null;
-
-  if (beltState) {
-    return (
-      beltState === "COOLING_50" ||
-      beltState === "DANGER"
-    );
-  }
-
   return device.state === "COOLING";
 }
 
 
-/**
- * Emergency도 Belt 판정을 최우선 사용한다.
- */
 function isEmergencyDevice(device: TelemetryV2): boolean {
-  const beltState = device.raw?.belt_state ?? null;
-
-  if (beltState) {
-    return beltState === "EMERGENCY";
-  }
-
   return device.state === "EMERGENCY";
 }
 
@@ -93,7 +70,7 @@ function App() {
   } = useLiveDevices(role, actorId);
 
 
-  // ★ 상단 요약도 현장 Belt 상태 기준
+  // 상단 요약도 공통 DeviceState 기준
   const emergencyCount =
     devices.filter(isEmergencyDevice).length;
 
