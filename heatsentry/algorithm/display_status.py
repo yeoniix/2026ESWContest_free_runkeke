@@ -1,8 +1,4 @@
-"""작은 장갑 LCD/OLED에 표시할 짧고 결정적인 상태·원인 문구.
-
-상태 판정(FSM)과 화면 문구를 분리해 두면, 화면이 바뀌어도 안전 제어 조건은
-변하지 않는다. 영문 대문자는 대부분의 128x64 OLED 기본 글꼴에서 바로 표시된다.
-"""
+"""Small OLED/LCD display text mapper."""
 
 from dataclasses import dataclass
 
@@ -13,8 +9,10 @@ class DisplayStatus:
     line2: str
 
 
-def select_display_cause(contributions: dict[str, float]) -> str:
-    """RiskIndex에 가장 많이 기여한 유효 신호 하나를 화면용 원인으로 고른다."""
+def select_display_cause(
+    contributions: dict[str, float],
+) -> str:
+
     labels = {
         "HR_dev": "HR HIGH",
         "HRV_suppression": "HR CHANGE",
@@ -23,10 +21,22 @@ def select_display_cause(contributions: dict[str, float]) -> str:
         "EnvHeatProxy": "HOT ENV",
         "ActivityLoad": "ACTIVE",
     }
+
     if not contributions:
         return "CHECK BODY"
-    name, value = max(contributions.items(), key=lambda item: item[1])
-    return labels.get(name, "CHECK BODY") if value > 0 else "CHECK BODY"
+
+    name, value = max(
+        contributions.items(),
+        key=lambda item: item[1],
+    )
+
+    if value <= 0:
+        return "CHECK BODY"
+
+    return labels.get(
+        name,
+        "CHECK BODY",
+    )
 
 
 def make_display_status(
@@ -39,26 +49,91 @@ def make_display_status(
     hr_bpm: float | None = None,
     skin_temp_c: float | None = None,
 ) -> DisplayStatus:
-    """상태와 냉각 단계를 2줄 LCD 표시용으로 변환한다.
 
-    상태는 사용자가 해야 할 행동이고, cause는 위험 판단의 가장 큰 원인이다.
-    """
-    if state == "EMERGENCY" or cooling_stage == "C4":
-        return DisplayStatus("EMERGENCY", "SOS  FAN 100%")
-    if not finger_detected or (hr_bpm is not None and hr_bpm <= 0):
-        return DisplayStatus("SENSOR_CHECK", "WEAR GLOVE")
+    if (
+        state == "EMERGENCY"
+        or cooling_stage == "C4"
+    ):
+        return DisplayStatus(
+            "EMERGENCY",
+            "SOS FAN 100%",
+        )
+
+    if (
+        state == "SENSOR_CHECK"
+        or not finger_detected
+        or (
+            hr_bpm is not None
+            and hr_bpm <= 0
+        )
+    ):
+        return DisplayStatus(
+            "SENSOR CHECK",
+            "WEAR GLOVE",
+        )
+
     if state == "BOOT":
-        return DisplayStatus("HEATSENTRY", "STARTING")
+        return DisplayStatus(
+            "HEATSENTRY",
+            "STARTING",
+        )
+
     if state == "BASELINE":
-        return DisplayStatus("BASELINE", "STAY STILL")
-    if cooling_stage == "C3":
-        return DisplayStatus("HIGH RISK", "FAN 100%")
-    if cooling_stage == "C2":
-        return DisplayStatus("DANGER", f"FAN 100% {cause}")
-    if cooling_stage == "C1":
-        return DisplayStatus("COOLING", f"FAN 50% {cause}")
-    if state == "WARNING":
-        return DisplayStatus("CAUTION", cause)
-    if hr_bpm is not None and skin_temp_c is not None:
-        return DisplayStatus("NORMAL", f"HR {hr_bpm:.0f} T{skin_temp_c:.1f}C")
-    return DisplayStatus("NORMAL", f"FAN {fan_percent}%")
+        return DisplayStatus(
+            "BASELINE",
+            "STAY STILL",
+        )
+
+    if (
+        state == "COOLING"
+        and cooling_stage == "C3"
+    ):
+        return DisplayStatus(
+            "HIGH RISK",
+            "FAN 100%",
+        )
+
+    if (
+        state == "COOLING"
+        and cooling_stage == "C2"
+    ):
+        return DisplayStatus(
+            "DANGER",
+            f"FAN 100% {cause}",
+        )
+
+    if (
+        state == "COOLING"
+        and cooling_stage == "C1"
+    ):
+        return DisplayStatus(
+            "COOLING",
+            f"FAN 50% {cause}",
+        )
+
+    if state == "CAUTION":
+        return DisplayStatus(
+            "CAUTION",
+            cause,
+        )
+
+    if state == "NORMAL":
+        if (
+            hr_bpm is not None
+            and skin_temp_c is not None
+        ):
+            return DisplayStatus(
+                "NORMAL",
+                f"HR {hr_bpm:.0f} "
+                f"T{skin_temp_c:.1f}C",
+            )
+
+        return DisplayStatus(
+            "NORMAL",
+            f"FAN {fan_percent}%",
+        )
+
+    return DisplayStatus(
+        state,
+        cause,
+    )
