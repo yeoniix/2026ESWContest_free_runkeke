@@ -69,7 +69,7 @@ Telemetry로 바꾸지만, USB 시리얼을 읽는 실행 프로세스는 아직
 
 저장소의 기존 기준 문서는 시뮬레이터 기준으로 손목 노드가 RiskIndex/FSM을 계산하고 BLE 또는
 HTTP 등가 경로를 사용한다고 설명한다. 실물 최종 설계는 벨트가 상태를 계산하고 ESP-NOW+LoRa를
-사용하므로 `README.md`, `docs/architecture.md`, `docs/api_contract.md`도 이 문서와 함께 갱신해야
+사용하므로 `README.md`도 이 문서와 함께 갱신해야
 역할 설명이 충돌하지 않는다.
 
 ---

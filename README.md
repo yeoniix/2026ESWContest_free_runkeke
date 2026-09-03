@@ -159,7 +159,7 @@ firmware/            임베디드 C/C++
 └─ lora_get/         LoRa 수신기 스케치 (35B를 시리얼로 넘긴다)
 
 dashboard/           React + TypeScript + Vite 관제 대시보드
-docs/                제품 개념 · 아키텍처 · 알고리즘 · 통신 계약 · 시연 · 데이터 · 하드웨어
+docs/hardware/       실물 배선 · 핀맵 · 조립 · 브리지 연동 가이드, CAD 소스
 tests/               pytest 80건
 pyproject.toml       패키지 경계와 pytest 설정
 requirements.txt     고정 의존성
@@ -196,7 +196,7 @@ python -m heatsentry.simulator.run_demo --scenario T03 --fast
 
 | 옵션 | 기본값 | 설명 |
 | --- | --- | --- |
-| `--scenario` | `T03` | `T01`~`T08`, `T10` 중 하나 (표는 [docs/demo_scenario.md](docs/demo_scenario.md)) |
+| `--scenario` | `T03` | `T01`~`T08`, `T10` 중 하나 (정의는 [scenarios.py](heatsentry/simulator/scenarios.py)) |
 | `--gateway-url` | `http://127.0.0.1:8000` | 게이트웨이 주소 |
 | `--device-id` | `HS-W-001` | 장치 ID |
 | `--fast` | off | 3~5분 걸리는 기준선 측정을 6~9초로 단축 (**개발용**, 실제 시연에는 쓰지 않는다) |
@@ -470,7 +470,7 @@ genesis previous_hash = "0" * 64
 수 있고, 내보내기 행위 자체도 감사 기록에 남는다.
 
 기본 DB 경로는 `heatsentry/heatsentry_gateway.db`이며 `HEATSENTRY_DB_PATH`로 바꿀 수 있다.
-자세한 보존 정책·개인정보 최소화는 [docs/aar_design.md](docs/aar_design.md).
+보존 정책과 스키마는 [db.py](heatsentry/server/db.py), 체인 계산은 [hash_chain.py](heatsentry/common/hash_chain.py)에 있다.
 
 ---
 
@@ -596,13 +596,21 @@ HeatSentry는 **지정된 훈련장에서 훈련 시간 중에만** 운용하는
 
 | 문서 | 내용 |
 | --- | --- |
-| [docs/concept.md](docs/concept.md) | 제품 개념, 서브시스템 책임, 안전 경계 |
-| [docs/architecture.md](docs/architecture.md) | 인터페이스 목록, 상태기계, 명령 중재, 코드 매핑 |
-| [docs/ai_pipeline.md](docs/ai_pipeline.md) | RiskIndex v0.3 공식, 하드웨어 3특징 프로필, 품질 게이트, 기준선 |
-| [docs/api_contract.md](docs/api_contract.md) | 패킷 바이트 레이아웃, GATT 서비스, 오류코드, 저하 모드 |
-| [docs/demo_scenario.md](docs/demo_scenario.md) | 시험 벡터 ↔ 시나리오 매핑, 140초 시연 대본 |
-| [docs/aar_design.md](docs/aar_design.md) | 데이터 보존, 해시체인 무결성, 내보내기, 개인정보 최소화 |
 | [docs/hardware/hardware_integration_kr.md](docs/hardware/hardware_integration_kr.md) | 실물 배선·핀맵·조립·브리지 연동 가이드 |
+| [docs/hardware/cad/](docs/hardware/cad/) | 냉각 하우징 CAD 소스·STL·BOM·출력 체크리스트 |
+
+설계 근거와 수치의 1차 출처는 기준선 문서(`HS-PDD-002`, `HS-SIID-002`)이며, 코드에서
+그 근거가 필요한 자리에는 해당 절·표 번호를 주석으로 달아 두었다. 알고리즘·상태 판정·
+패킷 규격은 이 README와 아래 코드가 기준이다.
+
+| 대상 | 코드 |
+| --- | --- |
+| RiskIndex 공식·품질 게이트 | [risk_engine.py](heatsentry/algorithm/risk_engine.py) |
+| 가중치·임계값·냉각 단계 표 | [risk_config.py](heatsentry/algorithm/risk_config.py) |
+| 상태 판정·명령 중재 | [fsm.py](heatsentry/algorithm/fsm.py) |
+| 패킷 바이트 레이아웃 | [packets.py](heatsentry/common/packets.py) · [glove_packets.py](heatsentry/common/glove_packets.py) |
+| 게이트웨이 데이터 계약 | [schema.py](heatsentry/common/schema.py) |
+| 시험 벡터 T01~T10 | [scenarios.py](heatsentry/simulator/scenarios.py) |
 
 기준선 문서는 `HS-PDD-002`(제품개발 상세설계서)와 `HS-SIID-002`(시스템 통합·인터페이스
 명세서) v2.0이다. 인터페이스 정의가 코드와 어긋나면 **인터페이스는 먼저 동결하고 구현을
