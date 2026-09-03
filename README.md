@@ -21,6 +21,48 @@ HeatSentry는 손목 웨어러블의 생체신호, 허리의 능동 냉각, 로�
 
 ---
 
+<img width="983" height="555" alt="스크린샷 2026-09-03 오전 10 31 55" src="https://github.com/user-attachments/assets/69db7e74-5f36-4991-b68d-4bbad2a9d78c" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 32 06" src="https://github.com/user-attachments/assets/ee003f0e-3d13-4308-b3c3-0d4c14ddf959" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 32 22" src="https://github.com/user-attachments/assets/d192c3e1-d98c-4b28-8cc9-049e3b064236" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 32 43" src="https://github.com/user-attachments/assets/ddf5a395-e786-4732-b4ac-ff307a8ced62" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 33 26" src="https://github.com/user-attachments/assets/9216c7f3-fcca-48e3-8515-9d9b1d4d55dc" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 33 35" src="https://github.com/user-attachments/assets/eaedb501-5257-4eaa-8bbc-6bab268f8ea3" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 33 56" src="https://github.com/user-attachments/assets/6fca27c2-93c7-40cf-97a4-0726ae635e19" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 34 07" src="https://github.com/user-attachments/assets/73ce7a04-5c3f-454c-8a8d-049905a632e3" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 34 17" src="https://github.com/user-attachments/assets/a3638500-6458-410b-843c-3d8d8995f942" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 34 25" src="https://github.com/user-attachments/assets/be346c44-3c95-40f4-a202-f1d5ab6b852a" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 34 34" src="https://github.com/user-attachments/assets/439b6b4e-e873-4f17-ba5f-6f9ed4d77ddc" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 34 41" src="https://github.com/user-attachments/assets/f18356e6-6c05-47cb-8ddb-da7ffc453e1e" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 34 51" src="https://github.com/user-attachments/assets/2b73cdff-757b-495f-a2eb-54dda439ec21" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 35 01" src="https://github.com/user-attachments/assets/e4877590-0aed-45e3-8224-92dea6887125" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 35 11" src="https://github.com/user-attachments/assets/b420307e-2855-4f5a-bcae-dca604447aad" />
+
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 35 21" src="https://github.com/user-attachments/assets/63e9bad5-003f-426c-a14d-eef1e601dcff" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 35 31" src="https://github.com/user-attachments/assets/1fbb2788-748c-42f9-8217-365c3a3ae6d8" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 35 39" src="https://github.com/user-attachments/assets/4e69158d-0a01-42c6-8479-c29d423be8c9" />
+
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 35 48" src="https://github.com/user-attachments/assets/9d6f8aaa-ac85-4de2-a2d3-2fef5d56542a" />
+
+<img width="983" height="551" alt="스크린샷 2026-09-03 오전 10 35 59" src="https://github.com/user-attachments/assets/a0283eec-992d-4346-ae7c-a4c81dfdc5e5" />
+
 ## 목차
 
 1. [왜 만들었나](#왜-만들었나)
