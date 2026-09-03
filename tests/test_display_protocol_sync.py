@@ -3,7 +3,7 @@
 Arduino 스케치는 자기 폴더 안의 헤더만 볼 수 있어서, display_protocol.h가
 belt_heltec/과 glove_esp32/ 양쪽에 복사돼 있어야 한다(헤더 주석의 요구사항).
 사본이 갈라지면 벨트가 보낸 상태 코드를 장갑이 다른 뜻으로 읽게 되고,
-게이트웨이의 BeltStateCode까지 어긋난다. 세 정의를 여기서 한 번에 묶어 둔다.
+게이트웨이의 DeviceStateCode까지 어긋난다. 세 정의를 여기서 한 번에 묶어 둔다.
 """
 
 import re
@@ -11,7 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from heatsentry.common.glove_packets import BeltCauseCode, BeltStateCode
+from heatsentry.common.glove_packets import (
+    BeltCauseCode,
+    CoolingStageCode,
+    DeviceStateCode,
+)
 
 FIRMWARE = Path(__file__).resolve().parents[1] / "firmware"
 BELT_HEADER = FIRMWARE / "belt_heltec" / "display_protocol.h"
@@ -55,12 +59,15 @@ def test_two_copies_are_identical():
 
 
 @pytest.mark.parametrize(
-    ("enum_name", "python_enum"),
-    [("StateCode", BeltStateCode), ("CauseCode", BeltCauseCode)],
+    ("enum_name", "prefix", "python_enum"),
+    [
+        ("StateCode", "STATE_", DeviceStateCode),
+        ("CoolingStageCode", "COOLING_", CoolingStageCode),
+        ("CauseCode", "CAUSE_", BeltCauseCode),
+    ],
 )
-def test_python_mirror_matches_firmware(enum_name, python_enum):
+def test_python_mirror_matches_firmware(enum_name, prefix, python_enum):
     """파이썬 디코더의 enum이 펌웨어 헤더와 이름·값 모두 같아야 한다."""
-    prefix = "STATE_" if enum_name == "StateCode" else "CAUSE_"
     firmware_values = {
         name.removeprefix(prefix): value
         for name, value in _parse_enum(GLOVE_HEADER.read_text(), enum_name).items()

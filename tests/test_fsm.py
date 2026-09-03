@@ -100,15 +100,15 @@ def test_safety_stop_forces_fan_off_but_keeps_stage():
     assert out.cooling_stage == "C1"  # 표7: 팬 OFF지만 판정 자체는 유지
 
 
-def test_warning_hysteresis_enter_and_exit():
+def test_caution_hysteresis_enter_and_exit():
     fsm = HeatSentryFsm()
     for _ in range(10):
         out = fsm.update(_risk(65), dt_s=1.0)
-    assert out.warning_active is True
+    assert out.caution_active is True
 
     for _ in range(30):
         out = fsm.update(_risk(50), dt_s=1.0)
-    assert out.warning_active is False
+    assert out.caution_active is False
 
 
 # --- 설정 일원화 회귀 시험 -------------------------------------------------

@@ -79,7 +79,19 @@ class HeatSentryFsm:
     ) -> None:
         self.config = config
 
-        self.stage = "C0"
+        self.lowest_stage = config.stages[0].name
+        self.highest_stage = config.stages[-1].name
+
+        # 비상 단계 = 자동 해제 조건이 없는 최상단(기본 표의 C4).
+        # 최상단에 해제 조건이 있으면 RiskIndex만으로는 비상에 들어가지 않는다.
+        top = config.stages[-1]
+        self.emergency_stage = (
+            top
+            if len(config.stages) >= 2 and top.exit_threshold is None
+            else None
+        )
+
+        self.stage = self.lowest_stage
         self.caution_active = False
 
         self.emergency_latched = False
@@ -112,8 +124,10 @@ class HeatSentryFsm:
         self.emergency_latched = False
         self.emergency_reason = None
 
-        # C4 해제 직후 C3 유지
-        self.stage = "C3"
+        # 최상단 해제 직후 한 단계 아래를 유지한다
+        self.stage = self.config.stages[-2].name if len(
+            self.config.stages
+        ) >= 2 else self.lowest_stage
 
     def update(
         self,
@@ -201,10 +215,12 @@ class HeatSentryFsm:
             or manual.manual_sos
         )
 
-        c4_config = cfg.stage("C4")
+        emergency_stage = self.emergency_stage
 
         risk_c4 = (
-            risk_index >= c4_config.enter_threshold
+            emergency_stage is not None
+            and risk_index
+            >= emergency_stage.enter_threshold
         )
 
         if (
@@ -223,7 +239,11 @@ class HeatSentryFsm:
             events.append("EMERGENCY_ENTER")
 
         if self.emergency_latched:
-            self.stage = "C4"
+            self.stage = (
+                emergency_stage.name
+                if emergency_stage is not None
+                else self.highest_stage
+            )
 
         else:
             current_idx = cfg.stage_index(
@@ -308,7 +328,7 @@ class HeatSentryFsm:
         if self.emergency_latched:
             device_state = DeviceState.EMERGENCY
 
-        elif self.stage != "C0":
+        elif self.stage != self.lowest_stage:
             device_state = DeviceState.COOLING
 
         elif self.caution_active:
